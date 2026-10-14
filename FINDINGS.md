@@ -6,9 +6,9 @@ x86recomp branch `d3d9` (stacked: `jumptable-dups` -> `win32-startup` ->
 `d3d9`, rebased on x86recomp main ee0d42b; nothing merged, main is in
 use on the Mac side). The game creates its D3D9 device, render targets
 and buffers, sets up DirectInput, clears and presents its first frame,
-and stops at its first D3DX call, D3DXCreateCubeTextureFromFileInMemory
-(see "D3D9 bring-up"). Still missing: D3DX (textures, the HLSL
-compiler), the draw path (programmable gfx::Device), DirectSound,
+loads its first textures through D3DX, and stops at its first
+D3DXCompileShader (see "D3D9 bring-up" and "HLSL"). Still missing: the
+HLSL translator, the draw path (programmable gfx::Device), DirectSound,
 XInput, Bink with DirectSound. Next steps are under "Next" at the end.
 
 ## The game
@@ -196,8 +196,40 @@ recomp_dinput8). Run as in CLAUDE.md with that binary.
   every address written with an uppercase hex digit; recounted, all
   remaining ones are data decoded as code: ASCII-shaped addresses and
   pointer tables).
-- Stops at d3dx9_35!D3DXCreateCubeTextureFromFileInMemory (return
-  0x6E5AE7) during asset loading.
+- Asset loading (x86recomp 0ff2f20): two 256x256 DXT3 cube maps with
+  one mip level (D3DXCreateCubeTextureFromFileInMemory; D3DX would
+  generate the other eight by recompressing, x86recomp keeps one and
+  warns) and a 32x32 DXT1 texture with all six levels.
+- Stops at the first D3DXCompileShader (vs_3_0, entry vertexProgram,
+  14,522 bytes, flags 0x200 = D3DXSHADER_OPTIMIZATION_LEVEL...; return
+  0x743E6E). See "HLSL".
+
+## HLSL (2026-10-14, first sample)
+`LSWTCS_SHADER_DUMP=dir` (x86recomp aaeab97) writes every source
+D3DXCompileShader gets. The first one ("Uber Shader v2.0", 646 lines):
+- One effect-style file per material, compiled twice: vs_3_0 with entry
+  `vertexProgram`, ps_3_0 with `fragmentProgram` (a `technique
+  TECHNIQUE_BUILTSHADER` with one pass names both and must be skipped).
+- The game's shader builder resolves its own conditionals: only
+  object-like `#define`s reach D3DX (the two `#if`s are in comments).
+  The EXE's ~1,000 `#if` lines are builder input.
+- Globals that are written: `VertexInput vin; VertexOutput vout;
+  FragmentOutput fout; half4 fs_layer0_color;` assigned from the entry's
+  parameter and read by helper functions. In HLSL non-static globals are
+  uniform, so fxc must treat assigned ones as private copies: the
+  translator has to as well.
+- `uniform` / `shared uniform` constants, many with `: SEMANTIC_X :
+  register(cN)` (fixed registers, overlapping by design: worldParams[3]
+  and world both at c16, vs_lightParams[11] and vs_sceneAmbientColor at
+  c28), others without a register (the compiler places them; the game
+  presumably finds them through the constant table, ppConstantTable).
+- Types: float4/half4/half3/half, float4x4, half4x4, arrays, structs
+  with semantics (POSITION, COLOR0, an array `float4 color[N] :
+  COLOR0` for multiple render targets). `iNliNE` (= inline), `const in`
+  and `out` parameters, swizzles, `saturate`, `string` globals.
+- More samples (pixel shaders with textures and lighting) are needed:
+  the run stops at the first compile until the translator returns
+  something.
 
 ## Steam DRM: SteamStub 2.1 (2026-10-14)
 The entry point (0x2A382ED) is in a `.bind` section and `.text` is
@@ -270,10 +302,14 @@ statically (nothing executed). What the loader does, from its code:
   untested until the game throws.
 
 ## Next
-1. D3DX 9 (x86recomp): textures from DDS in memory (2D and cube; gfx
-   needs cube textures), the HLSL translator behind D3DXCompileShader
-   (ARCHITECTURE.md, decided: own translator to GLSL -> SPIR-V/MSL),
-   fonts, render-to-surface, the matrix helpers.
+1. The HLSL translator (x86recomp, decided: own, to GLSL -> SPIR-V/MSL):
+   front end for this dialect (object-like macros, structs, globals,
+   semantics, registers, matrices, intrinsics), register allocation and
+   an ID3DXConstantTable consistent with it, and a container returned as
+   the shader "bytecode" (a version token, a CTAB comment for anything
+   that parses it, our translation in a private comment, END) that
+   CreateVertexShader/CreatePixelShader recognise. Grow it shader by
+   shader with LSWTCS_SHADER_DUMP.
 2. The programmable path in gfx::Device (shader modules, vertex
    declarations, constants, float render targets in pipelines) and the
    D3D9 draw calls on it.
