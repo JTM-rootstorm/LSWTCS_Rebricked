@@ -1,0 +1,38 @@
+# Build trees
+out/
+build/
+
+# Lifter output (regenerated from the game binaries)
+generated/
+
+# Game-derived data: unpacked EXEs, symbol exports, dumps
+unpacked/
+symbols/
+dumps/
+captures/
+
+# Ghidra project (contains the game's code)
+lswtcs_recomp.gpr
+lswtcs_recomp.rep/
+lswtcs_recomp.lock
+lswtcs_recomp.lock~
+
+# Logs
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# Never commit game files or anything extracted from them
+*.exe
+*.dll
+*.dat
+*.DAT
+*.bik
+*.BIK
+*.ogg
+*.OGG
+*.cab
+*.bin
+*.bmp
