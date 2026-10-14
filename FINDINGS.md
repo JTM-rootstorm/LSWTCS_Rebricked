@@ -2,14 +2,14 @@
 
 ## Status (2026-10-14)
 The Steam EXE unpacks statically, is lifted, and runs natively on
-x86recomp branch `d3d9` (stacked: `jumptable-dups` -> `win32-startup` ->
-`d3d9`, rebased on x86recomp main ee0d42b; nothing merged, main is in
-use on the Mac side). The game creates its D3D9 device, render targets
-and buffers, sets up DirectInput, clears and presents its first frame,
-loads its first textures through D3DX, and stops at its first
-D3DXCompileShader (see "D3D9 bring-up" and "HLSL"). Still missing: the
-HLSL translator, the draw path (programmable gfx::Device), DirectSound,
-XInput, Bink with DirectSound. Next steps are under "Next" at the end.
+x86recomp (main up to aaeab97, plus the HLSL translator on branch
+`d3d9`). The game creates its D3D9 device, render targets and buffers,
+sets up DirectInput, clears and presents its first frame, loads its
+first textures through D3DX, compiles its first three shader pairs
+through the HLSL translator, and stops at SetRenderTarget(1) (multiple
+render targets; see "D3D9 bring-up" and "HLSL"). Still missing: the
+draw path (programmable gfx::Device), DirectSound, XInput, Bink with
+DirectSound. Next steps are under "Next" at the end.
 
 ## The game
 - Steam app 32440, build 1017673. One EXE, `LEGOStarWarsSaga.exe`
@@ -200,9 +200,8 @@ recomp_dinput8). Run as in CLAUDE.md with that binary.
   one mip level (D3DXCreateCubeTextureFromFileInMemory; D3DX would
   generate the other eight by recompressing, x86recomp keeps one and
   warns) and a 32x32 DXT1 texture with all six levels.
-- Stops at the first D3DXCompileShader (vs_3_0, entry vertexProgram,
-  14,522 bytes, flags 0x200 = D3DXSHADER_OPTIMIZATION_LEVEL...; return
-  0x743E6E). See "HLSL".
+- Stopped at the first D3DXCompileShader (vs_3_0, entry vertexProgram,
+  14,522 bytes; return 0x743E6E). See "HLSL".
 
 ## HLSL (2026-10-14, first sample)
 `LSWTCS_SHADER_DUMP=dir` (x86recomp aaeab97) writes every source
@@ -230,6 +229,31 @@ D3DXCompileShader gets. The first one ("Uber Shader v2.0", 646 lines):
 - More samples (pixel shaders with textures and lighting) are needed:
   the run stops at the first compile until the translator returns
   something.
+
+## HLSL translator in the game (2026-10-14, x86recomp branch d3d9)
+- Caller (0x743DA0): compiles `vertexProgram` (vs_x) and, when it has a
+  pixel source, `fragmentProgram` (ps_x); the profile pair comes from
+  the shader model (1_1, 2_0, 2_a, 3_0 strings at 0x7E8B40..78). Flags
+  0x200 (D3DXSHADER_AVOID_FLOW_CONTROL), 0x10200 for shader model 1
+  (plus D3DXSHADER_USE_LEGACY_D3DX9_31_DLL). No macros, no include
+  handler. On failure it logs ppErrorMsgs; on success it creates the
+  shaders (device vtable +0x16C CreateVertexShader, through 0x6E4870) and
+  hands both constant tables to 0x742410.
+- 0x742410 walks a table of semantic names (0x82B1D0.., 0x5C bytes per
+  entry: a vertex and a pixel name) and calls only
+  ID3DXConstantTable::GetConstantByName and GetConstantDesc. From the
+  desc it keeps RegisterIndex, RegisterCount, Elements, the class
+  (scalar/vector/matrix) and whether it is a sampler (index + 0x101),
+  then sets registers itself. So the table must name the registers the
+  translation reads; nothing else of D3DX's table is used.
+- The vertex and pixel sources differ (the builder emits per stage): the
+  pixel source has its own `register()` bindings.
+- With the translator the game compiles three pairs (735, 646 and 651
+  lines; one material writes COLOR0-2, i.e. three render targets), all
+  six pass glslang, then stops at `SetRenderTarget(1)`. One construct
+  was new: `TEXCOORD0_centroid` semantics (centroid interpolation).
+- Dumps are now named by profile, entry and source, so the vertex and
+  pixel compile of one source no longer overwrite each other.
 
 ## Steam DRM: SteamStub 2.1 (2026-10-14)
 The entry point (0x2A382ED) is in a `.bind` section and `.text` is
@@ -302,20 +326,14 @@ statically (nothing executed). What the loader does, from its code:
   untested until the game throws.
 
 ## Next
-1. The HLSL translator (x86recomp, decided: own, to GLSL -> SPIR-V/MSL):
-   front end for this dialect (object-like macros, structs, globals,
-   semantics, registers, matrices, intrinsics), register allocation and
-   an ID3DXConstantTable consistent with it, and a container returned as
-   the shader "bytecode" (a version token, a CTAB comment for anything
-   that parses it, our translation in a private comment, END) that
-   CreateVertexShader/CreatePixelShader recognise. Grow it shader by
-   shader with LSWTCS_SHADER_DUMP.
-2. The programmable path in gfx::Device (shader modules, vertex
-   declarations, constants, float render targets in pipelines) and the
-   D3D9 draw calls on it.
+1. The programmable path in gfx::Device: shader modules from the
+   translated GLSL (glslang at run time, SPIRV-Cross for Metal), the
+   prelude (vertex pulling by declaration, position fix-ups), constant
+   registers, multiple render targets, float render targets in
+   pipelines; then the D3D9 draw calls on it.
+2. More HLSL as the game reaches more materials (textures, lighting,
+   skinning): check every dump with recomp_hlslc + glslang.
 3. DirectSound 8, XInput on SDL gamepads, Bink with DirectSound audio,
    WinMM timers.
-4. Merge the x86recomp branches when main is free (DS1/CoD1 rebuild and
-   ctest per x86recomp's rules).
-5. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
+4. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
    (after tracing the clock), resolution list.

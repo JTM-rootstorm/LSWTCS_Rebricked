@@ -46,11 +46,10 @@ thunks, CPUID) stay out of replacement code.
   or needs interpolation/fixed steps as in CoD1.
 
 ## Milestones (provisional)
-- M0: unpacked, lifted, linked. Done 2026-10-14 (pending the lifter fix
-  merge).
-- M1: CRT and WinMain run to Direct3DCreate9. Done 2026-10-14 (pending
-  the x86recomp merges).
-- M2: D3D9/D3DX HLE: front-end menus render.
+- M0: unpacked, lifted, linked. Done 2026-10-14.
+- M1: CRT and WinMain run to Direct3DCreate9. Done 2026-10-14.
+- M2: D3D9/D3DX HLE: front-end menus render. HLSL translator done
+  (x86recomp); the programmable draw path is next.
 - M3: in-game rendering, input, sound, Bink movies; a level playable.
 - M4: macOS arm64 on Metal.
 - M5: widescreen at any aspect ratio, uncapped frame rate.
