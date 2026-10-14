@@ -4,11 +4,11 @@
 Groundwork. The Steam EXE unpacks statically, Ghidra has analysed it,
 the lifter turns it into C++, and the game builds and links against
 x86recomp (with two lifter fixes on x86recomp branch `jumptable-dups`,
-not merged yet). The CRT start-up runs and WinMain starts; it stops at
-the first import without a handler, ole32!CoInitialize (see "First
-run"). The game's platform layer (Direct3D 9, D3DX 9, DirectSound 8,
-DirectInput 8, XInput) is all still missing from the runtime. Next steps
-are under "Next" at the end.
+not merged yet). The CRT start-up and WinMain run to the first D3D9
+call, d3d9!Direct3DCreate9, with a few Win32 handlers added on x86recomp
+branch `win32-startup` (see "To Direct3DCreate9"). The game's platform
+layer (Direct3D 9, D3DX 9, DirectSound 8, DirectInput 8, XInput) is all
+still missing from the runtime. Next steps are under "Next" at the end.
 
 ## The game
 - Steam app 32440, build 1017673. One EXE, `LEGOStarWarsSaga.exe`
@@ -41,7 +41,7 @@ are under "Next" at the end.
 | DSOUND | 1 | ordinal 11 (`DirectSoundCreate8`) |
 | DINPUT8 | 1 | `DirectInput8Create` |
 | XINPUT1_3 | 3 | ordinals 2, 3, 4 (`XInputGetState`, `XInputSetState`, `XInputGetCapabilities`) |
-| ole32 / OLEAUT32 | 5 / 2 | COM init, `CoCreateInstance`, `CoSetProxyBlanket`, `SysAllocString`/`SysFreeString` (WMI, by the look of it the DirectX SDK's "is this an XInput device" check; to confirm) |
+| ole32 / OLEAUT32 | 5 / 2 | COM init, `CoCreateInstance`, `CoSetProxyBlanket`, `SysAllocString`/`SysFreeString`: the DirectX SDK's IsXInputDevice (WMI) and Game Explorer VerifyAccess, see "To Direct3DCreate9" |
 | ADVAPI32 / SHELL32 / GDI32 | 3 / 3 / 1 | registry read, `SHGetFolderPathA`, `SHCreateDirectoryExA`, `ShellExecuteA` |
 
 ### Shaders: HLSL generated at run time
@@ -62,12 +62,8 @@ Widescreen, volumes, MouseSensitivity, InvertY, Vibration, Bloom/
 Shadow/SpeedBlur methods, UseHires, ForceShaderModel. There is a
 Widescreen option already (strings "%s: 16:9" / "%s: 4:3"), so
 widescreen work is about arbitrary aspect ratios (21:9, 16:10), FOV and
-2D placement, not adding it from nothing. Registry: the EXE builds
-`SOFTWARE\<company>\<title>` and reads a DWORD `LanguageVal` (the Steam
-install script writes HKLM\Software\LucasArts\LEGOStarWarsSaga with
-PathVal, SilentVal and LanguageVal). GameConfig::registry only seeds
-strings; nothing is seeded yet. Check with LSWTCS_TRACE what the game
-reads and what it does without it.
+2D placement, not adding it from nothing. Where it lives and the
+registry: see "To Direct3DCreate9".
 
 ### Timing (first look, not yet traced)
 - 0x4FFBB0 reads QueryPerformanceFrequency/Counter once with the process
@@ -103,6 +99,61 @@ LSWTCS_BACKGROUND=1 and an isolated XDG_DATA_HOME, under a 6 GB cap:
   SetThreadAffinityMask, SetThreadPriority, VerifyVersionInfoA,
   VerSetConditionMask, GetUserGeoID, OutputDebugStringW, FatalAppExitA,
   console functions). Some of these may never be called.
+
+## To Direct3DCreate9 (2026-10-14, x86recomp win32-startup c1febfe)
+Run with LSWTCS_TRACE=1, LSWTCS_BACKGROUND=1, SDL_ASSERT=abort and an
+isolated XDG_DATA_HOME under the 6 GB cap: 1,623 HLE calls, then
+`FATAL: unimplemented import d3d9.dll!Direct3DCreate9 called (return
+address 006E2BAD)`. After GetModuleFileNameA the game only needed
+CoInitialize and SetThreadAffinityMask. Startup order (WinMain 0x6DE0E0):
+1. 0x6DD160: CoInitialize, CoCreateInstance(CLSID_GameExplorer
+   {9A5EA990-3034-4D6F-9128-01F3C61022BC}, IID_IGameExplorer), then
+   IGameExplorer::VerifyAccess on the EXE path (vtable +0x18). If the
+   class cannot be created the check passes; only a VerifyAccess failure
+   shows "You do not have sufficient permissions to play this game."
+   x86recomp's CoCreateInstance returns REGDB_E_CLASSNOTREG (no Game
+   Explorer, as on XP), so it passes.
+2. SetThreadAffinityMask(GetCurrentThread(), 1): the main thread is
+   pinned to CPU 0 for the rest of the run (the clock at 0x4FFBB0 also
+   pins the process while it reads QPC). x86recomp keeps the masks as
+   bookkeeping and pins nothing on the host.
+3. 0x492B40 (the game's main), 0x4011E0: reads the language
+   (0x6DC890, key from the EXE: `HKLM\SOFTWARE\LUCASARTS\LEGOSTARWARSSAGA`,
+   DWORD `LanguageVal`, 4 bytes). Not found here, so it falls back to
+   GetUserDefaultLangID (0x409); 0x409 then becomes 0x809 (UK English)
+   because tag 0x4F of the init list (below) is not passed, so the game
+   picks language index 1. GetUserGeoID is behind a flag nothing sets.
+   A seeded LanguageVal would need a REG_DWORD (GameConfig::registry
+   seeds REG_SZ only); not needed for English.
+4. 0x6DBB30 (pcapi.cpp, platform init) takes a tag list from 0x4014xx:
+   tag 0x2E window title "LEGO® Star Wars™: The Complete Saga", 0x2F
+   registry key, 0x30 "LucasArts", 0x31 "LEGO Star Wars - The Complete
+   Saga". 0x6DDD50 stores 0x30/0x31 as the save-folder company and title
+   with "use My Documents" = 0. It then calls 0x6E2BA0, which creates the
+   D3D9 object (before any window; the window class and keyboard-layout
+   calls come later), then 0x6DB940 (pcconfig.txt) and 0x6DB990.
+- Save/config folder (0x6DD8C0, 0x6DD9E0, statically): SHGetFolderPathA
+  (CSIDL_LOCAL_APPDATA, CSIDL_PERSONAL if the flag were set) +
+  `\LucasArts\LEGO Star Wars - The Complete Saga\`, created with
+  SHCreateDirectoryExA when GetFileAttributesA fails; pcconfig.txt is
+  opened there with fopen. With x86recomp's folders that is
+  `$XDG_DATA_HOME/lswtcs/drive_c/Documents and Settings/Player/Local
+  Settings/Application Data/LucasArts/LEGO Star Wars - The Complete
+  Saga/pcconfig.txt`. shell32 SHGetFolderPathA and SHCreateDirectoryExA
+  were added for it but are not exercised until Direct3DCreate9 returns.
+- WMI (0x6D5080, not reached yet): CoCreateInstance(CLSID_WbemLocator,
+  IID_IWbemLocator), ConnectServer `\\.\root\cimv2`,
+  CoSetProxyBlanket, ExecQuery over `Win32_PNPEntity` reading
+  `DeviceID` and looking for "IG_" plus VID_/PID_: the DirectX SDK's
+  IsXInputDevice, used to skip XInput pads in DirectInput enumeration.
+  Without the WMI class every device counts as "not XInput", so
+  CoSetProxyBlanket and SysAllocString/SysFreeString stay unreached.
+- Allocations so far: a 64 MB pool (pcapi.cpp) and a 150 MB heap block
+  (0x960003B bytes) before Direct3DCreate9.
+- Not reached yet, so still without handlers: RegisterClassExA,
+  LoadKeyboardLayoutA, MapVirtualKeyExA, SetThreadPriority,
+  VerifyVersionInfoA/VerSetConditionMask, CompareStringA/W,
+  GetUserGeoID, the rest of the kernel32 list in "First run".
 
 ## Steam DRM: SteamStub 2.1 (2026-10-14)
 The entry point (0x2A382ED) is in a `.bind` section and `.text` is
@@ -177,9 +228,8 @@ statically (nothing executed). What the loader does, from its code:
 ## Next
 1. Merge the lifter fixes (x86recomp `jumptable-dups`) after the
    oracle tests run (DS1/CoD1 ctest with their game EXEs set).
-2. The Win32 pieces up to `Direct3DCreate9` (COM init, the WMI device
-   check, SHGetFolderPathA for the save/config folder, window class),
-   in x86recomp.
+2. Merge x86recomp `win32-startup` (Win32 handlers up to
+   Direct3DCreate9).
 3. Decide the HLSL path (ARCHITECTURE.md, "Open decisions") before
    starting the D3D9 HLE.
 4. x86recomp HLE, in the order the game needs it: d3d9 (device, resources,
