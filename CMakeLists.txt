@@ -17,10 +17,9 @@ add_subdirectory("${X86RECOMP_DIR}" x86recomp)
 recomp_add_lifted(lswtcs_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if(TARGET lswtcs_lifted)
   add_executable(lswtcs src/main.cpp $<TARGET_OBJECTS:lswtcs_lifted>)
-  # recomp_gfx directly until there is a Direct3D 9 module to bring it;
   # recomp_mss32 for the Bink HLE's audio.
   target_link_libraries(lswtcs PRIVATE recomp_runtime recomp_mss32 recomp_bink
-                        recomp_gfx)
+                        recomp_d3d9 recomp_dinput8)
   set_target_properties(lswtcs PROPERTIES ENABLE_EXPORTS ON)  # symbol names in fault backtraces
 endif()
 

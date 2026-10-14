@@ -18,12 +18,19 @@ each checked against the exact lifted original, until nothing lifted is
 left. Lifted code stays exact; scaffold-only mechanisms (guest heap,
 thunks, CPUID) stay out of replacement code.
 
-## Decisions (2026-10-14, inherited from the other ports)
+## Decisions (2026-10-14)
 - Static recompilation on x86recomp; game knowledge stays in this repo.
 - Graphics only through x86recomp's gfx::Device (SDL_GPU: Vulkan on
   Linux, Metal on macOS). No host OpenGL/D3D.
 - The Steam EXE is unpacked statically (tools/unpack_steamstub.py); the
   wrapped EXE and SteamDRMP.dll are never run.
+- HLSL at run time (decided with the user 2026-10-14): x86recomp gets
+  its own translator for the D3D9-era HLSL dialect (SM 1.1-3.0 source,
+  as D3DXCompileShader takes it) to GLSL, compiled at run time with the
+  glslang library to SPIR-V (Vulkan) and with SPIRV-Cross to MSL
+  (Metal). No Wine-project code (vkd3d-shader was the alternative), all
+  permissive licences, and generic for other D3D9 games. The game's
+  shader builder can later be ported natively on top of it.
 
 ## Shape
 - x86recomp gains, as generic HLE: Direct3D 9 (this game is its first
@@ -34,27 +41,6 @@ thunks, CPUID) stay out of replacement code.
   and replacements (widescreen, frame pacing, ...), the unpacker, docs.
 
 ## Open decisions
-- **HLSL at run time.** The game generates HLSL source and compiles it
-  with D3DXCompileShader (profiles vs/ps 1.1 to 3.0). Something has to
-  turn that source into shaders for gfx::Device. Options:
-  1. Compile the HLSL to D3D9 bytecode at run time with an HLSL compiler
-     library, then translate the bytecode (which the D3D9 HLE needs
-     anyway for any precompiled shaders) to SPIR-V/MSL. The candidates
-     that accept SM1-3 HLSL: vkd3d-shader (LGPL, Wine project; may
-     conflict with "no Wine in the product") or Microsoft's DXC (only
-     SM 6 syntax, so the old `tex2D`/`sampler2D` dialect would need
-     rewriting).
-  2. Capture every generated source string (a finite set: feature bits
-     x shader model), compile them offline once with Microsoft's
-     compiler on Windows or with any of the above, and ship a cache
-     keyed by the source hash. No compiler in the product, but a cache
-     made from game-derived text cannot go in git, so it would have to
-     be generated on the user's machine.
-  3. Port the shader builder: the HLSL fragments become GLSL fragments
-     assembled by native code (the end state of the native port anyway).
-     The most work up front, the cleanest result.
-  To decide with the user once the D3D9 HLE starts; a first trace of
-  how many distinct shaders a level produces will help.
 - **Frame rate.** Whether game logic is tied to frames (see FINDINGS,
   Timing). Determines whether an uncapped frame rate is a pacing change
   or needs interpolation/fixed steps as in CoD1.

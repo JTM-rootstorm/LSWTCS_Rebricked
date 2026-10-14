@@ -1,14 +1,15 @@
 # Findings
 
 ## Status (2026-10-14)
-Groundwork. The Steam EXE unpacks statically, Ghidra has analysed it,
-the lifter turns it into C++, and the game builds and links against
-x86recomp (with two lifter fixes on x86recomp branch `jumptable-dups`,
-not merged yet). The CRT start-up and WinMain run to the first D3D9
-call, d3d9!Direct3DCreate9, with a few Win32 handlers added on x86recomp
-branch `win32-startup` (see "To Direct3DCreate9"). The game's platform
-layer (Direct3D 9, D3DX 9, DirectSound 8, DirectInput 8, XInput) is all
-still missing from the runtime. Next steps are under "Next" at the end.
+The Steam EXE unpacks statically, is lifted, and runs natively on
+x86recomp branch `d3d9` (stacked: `jumptable-dups` -> `win32-startup` ->
+`d3d9`, rebased on x86recomp main ee0d42b; nothing merged, main is in
+use on the Mac side). The game creates its D3D9 device, render targets
+and buffers, sets up DirectInput, clears and presents its first frame,
+and stops at its first D3DX call, D3DXCreateCubeTextureFromFileInMemory
+(see "D3D9 bring-up"). Still missing: D3DX (textures, the HLSL
+compiler), the draw path (programmable gfx::Device), DirectSound,
+XInput, Bink with DirectSound. Next steps are under "Next" at the end.
 
 ## The game
 - Steam app 32440, build 1017673. One EXE, `LEGOStarWarsSaga.exe`
@@ -79,7 +80,7 @@ registry: see "To Direct3DCreate9".
 Whether game logic is tied to the frame rate (the console versions run
 at 30 or 60) is the key question for an uncapped frame rate.
 
-## First run (2026-10-14, x86recomp jumptable-dups ac3ff08)
+## First run (2026-10-14, x86recomp jumptable-dups, then 6496f03)
 `lswtcs` links (recomp_gfx directly, since there is no D3D9 module to
 bring it yet; recomp_mss32 for the Bink HLE). Run with LSWTCS_TRACE=1,
 LSWTCS_BACKGROUND=1 and an isolated XDG_DATA_HOME, under a 6 GB cap:
@@ -100,7 +101,7 @@ LSWTCS_BACKGROUND=1 and an isolated XDG_DATA_HOME, under a 6 GB cap:
   VerSetConditionMask, GetUserGeoID, OutputDebugStringW, FatalAppExitA,
   console functions). Some of these may never be called.
 
-## To Direct3DCreate9 (2026-10-14, x86recomp win32-startup c1febfe)
+## To Direct3DCreate9 (2026-10-14, x86recomp win32-startup, then bcc1aa9)
 Run with LSWTCS_TRACE=1, LSWTCS_BACKGROUND=1, SDL_ASSERT=abort and an
 isolated XDG_DATA_HOME under the 6 GB cap: 1,623 HLE calls, then
 `FATAL: unimplemented import d3d9.dll!Direct3DCreate9 called (return
@@ -154,6 +155,49 @@ CoInitialize and SetThreadAffinityMask. Startup order (WinMain 0x6DE0E0):
   LoadKeyboardLayoutA, MapVirtualKeyExA, SetThreadPriority,
   VerifyVersionInfoA/VerSetConditionMask, CompareStringA/W,
   GetUserGeoID, the rest of the kernel32 list in "First run".
+
+## D3D9 bring-up (2026-10-14, x86recomp d3d9 c6b4334)
+Build: `cmake --preset release -B out/build/release-d3d9
+-DX86RECOMP_DIR=../../x86recomp-d3d9` (the game links recomp_d3d9 and
+recomp_dinput8). Run as in CLAUDE.md with that binary.
+- D3D9 object (0x6E2BA0, before any window): GetDeviceCaps(HAL),
+  GetAdapterIdentifier, GetAdapterDisplayMode. The desktop's aspect
+  (width / height) is stored right after (0x6E1D00 classifies it): the
+  starting point for widescreen.
+- Device setup (0x6E3940): GetAdapterModeCount/EnumAdapterModes
+  (X8R8G8B8, 16 modes), GetDeviceCaps, CheckDeviceType, multisample
+  probes (none, 2, 4, 8, 16 for A8R8G8B8 and D24S8), then CreateDevice:
+  1024x768 A8R8G8B8, 2 back buffers, full screen (pcconfig defaults),
+  D24S8 auto depth, interval ONE, behaviour 0x54 (hardware vertex
+  processing, pure device, multithreaded), no FPU_PRESERVE: the main
+  thread's x87 goes to single precision (CW 027F -> 007F), as on
+  Windows.
+- Then: GetBackBuffer, GetDepthStencilSurface, two 1024x768 A8R8G8B8
+  render-target textures and a 1024x768 R32F one (created without
+  CheckDeviceFormat; null was dereferenced when it failed), vertex and
+  index buffers, three vertex declarations, SetRenderTarget/Clear/Present
+  (the first frame), 24 sampler states, ShowCursor(FALSE).
+- DirectInput (0x6DACB0): mouse (GUID_SysMouse, exclusive|foreground,
+  c_dfDIMouse, DIPROP_AXISMODE absolute, DIPROP_BUFFERSIZE 16), then
+  EnumDevices for keyboard (3), pointer (2) and game controllers (4).
+  The callback (0x6D9DF0) skips XInput devices (WMI check 0x6D5080),
+  opens a keyboard (non-exclusive|foreground|no-win-key, c_dfDIKeyboard)
+  and DirectInput joysticks/gamepads (types 0x14/0x15; "Saitek
+  P2600/P2900" get a button-count fix). XInput pads are found by
+  0x6DA200 polling XInputGetCapabilities for users 0-3 and read with
+  XInputGetState (0x6D74E0), so x86recomp's DirectInput reports no
+  game controllers and pads go through XInput.
+- The CRT's SSE2 math (0x6F6xxx-0x6FDxxx, chosen because the CPU has
+  SSE2) and the engine's SSE vector code (0x5B3060-0x5CD500: rsqrtps,
+  4x4 transposes) needed SSE forms the lifter lacked; now lifted, and
+  the oracle tests over this EXE pass: lift_x87, lift_int, lift_sse (550
+  forms). RSQRTPS is the correctly rounded 1/sqrt (x86recomp sse.h).
+- Unimplemented sites are 1,000 (the earlier count of 1,044 missed
+  every address written with an uppercase hex digit; recounted, all
+  remaining ones are data decoded as code: ASCII-shaped addresses and
+  pointer tables).
+- Stops at d3dx9_35!D3DXCreateCubeTextureFromFileInMemory (return
+  0x6E5AE7) during asset loading.
 
 ## Steam DRM: SteamStub 2.1 (2026-10-14)
 The entry point (0x2A382ED) is in a `.bind` section and `.text` is
@@ -226,17 +270,16 @@ statically (nothing executed). What the loader does, from its code:
   untested until the game throws.
 
 ## Next
-1. Merge the lifter fixes (x86recomp `jumptable-dups`) after the
-   oracle tests run (DS1/CoD1 ctest with their game EXEs set).
-2. Merge x86recomp `win32-startup` (Win32 handlers up to
-   Direct3DCreate9).
-3. Decide the HLSL path (ARCHITECTURE.md, "Open decisions") before
-   starting the D3D9 HLE.
-4. x86recomp HLE, in the order the game needs it: d3d9 (device, resources,
-   fixed function where used, vs/ps 1.1-3.0 bytecode to SPIR-V/MSL over
-   gfx::Device), d3dx9_35 (shader compile, textures from DDS/TGA in
-   memory, fonts, matrix helpers), DirectSound 8 (secondary buffers, 3D?),
-   DirectInput 8 keyboard/mouse, XInput on SDL gamepads, Bink with
-   DirectSound audio.
+1. D3DX 9 (x86recomp): textures from DDS in memory (2D and cube; gfx
+   needs cube textures), the HLSL translator behind D3DXCompileShader
+   (ARCHITECTURE.md, decided: own translator to GLSL -> SPIR-V/MSL),
+   fonts, render-to-surface, the matrix helpers.
+2. The programmable path in gfx::Device (shader modules, vertex
+   declarations, constants, float render targets in pipelines) and the
+   D3D9 draw calls on it.
+3. DirectSound 8, XInput on SDL gamepads, Bink with DirectSound audio,
+   WinMM timers.
+4. Merge the x86recomp branches when main is free (DS1/CoD1 rebuild and
+   ctest per x86recomp's rules).
 5. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
-   (after tracing the clock above), resolution list.
+   (after tracing the clock), resolution list.
