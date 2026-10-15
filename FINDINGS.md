@@ -2,13 +2,14 @@
 
 ## Status (2026-10-14)
 The Steam EXE unpacks statically, is lifted, and runs natively on
-x86recomp (branch `d3d9`, ahead of main by DirectSound, XInput, WinMM
-timers and StretchRect). The game boots through its D3D9 setup, sound
-(DirectSound 3D), input and timers, and renders its first screens: the
-legal screen and "A long time ago..." are drawn through shaders
-translated from its HLSL (about 1,100 draws, 900 frames). It stops at the
-first draw with one of its 29 precompiled shaders (D3D9 bytecode, not
-HLSL). Still missing: a bytecode translator, Bink with DirectSound.
+x86recomp (branch `d3d9`, ahead of main by the bytecode translator). The
+game boots through its D3D9 setup, sound (DirectSound 3D), input and
+timers, and runs its title screen: legal screen, opening text, then the
+LEGO Star Wars logo over a starfield with ships and the minifigure
+banners ("Press a key or controller button..."), drawn with shaders
+translated from its HLSL and from its precompiled bytecode (3,700
+frames). It stops when the attract-mode Bink movie starts
+(BinkSetSoundTrack). Still missing: Bink with DirectSound audio.
 Next steps are under "Next" at the end.
 
 ## The game
@@ -358,12 +359,27 @@ statically (nothing executed). What the loader does, from its code:
   (seen so far): vs_1_1 x10, vs_2_0 x2, vs_3_0 x2, ps_1_1 x5, ps_2_0 x6,
   ps_3_0 x4 (42-566 tokens). LSWTCS_SHADER_DUMP writes them as .vso/.pso.
 
+## Precompiled shaders, title screen (2026-10-14)
+- With the bytecode translator (x86recomp 8e7e523) every shader of the
+  run translates and compiles: 29 precompiled (.vso/.pso) and 82 HLSL
+  sources (41 pairs). The precompiled ones use mov/add/mul/mad, dp3/dp4,
+  min/max, rcp/rsq, lit, expp (vs_1_1), lrp, cmp, tex/texcoord (ps_1_1,
+  one co-issued dp3), texld and texldl (ps_3_0); no flow control.
+- The title screen draws correctly by eye (frames 700-3700): logo,
+  starfield, X-wings, a lightsaber, minifigures in the banner.
+- After idling on the title screen the game starts its attract-mode
+  movie: binkw32 `_BinkSetSoundTrack@8` (0x631987) is the first import
+  the Bink HLE lacks (it has the older `@4` form). This binkw32 is a
+  newer Bink: the game imports BinkOpen, BinkClose, BinkDoFrame,
+  BinkNextFrame, BinkWait, BinkGoto, BinkCopyToBufferRect,
+  BinkGetRealtime, BinkSetVolume, BinkSetSoundTrack@8 (track count and
+  list) and plays audio through DirectSound (BinkSetSoundSystem with
+  BinkOpenDirectSound), not Miles.
+
 ## Next
-1. A D3D9 shader bytecode translator (shader models 1.1-3.0, to the same
-   GLSL contract as the HLSL translator), for the 29 precompiled
-   shaders; then on to the menus.
-2. More HLSL as the game reaches more materials: check every dump with
-   recomp_hlslc + glslang.
-3. Bink with DirectSound audio (BinkSoundUseDirectSound).
-4. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
+1. Bink with DirectSound audio (BinkSetSoundTrack,
+   BinkSoundUseDirectSound), then the attract movie and the menus.
+2. More shaders as the game reaches more materials: check every dump
+   with recomp_hlslc + glslang (HLSL and .vso/.pso).
+3. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
    (after tracing the clock), resolution list.
