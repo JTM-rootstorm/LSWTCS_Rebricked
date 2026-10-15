@@ -2,15 +2,14 @@
 
 ## Status (2026-10-14)
 The Steam EXE unpacks statically, is lifted, and runs natively on
-x86recomp (main up to 374fbd4, plus the programmable gfx path on branch
-`d3d9`). The game creates its D3D9 device, render targets (including
-multiple render targets) and buffers, sets up DirectInput, loads its
-first textures through D3DX, compiles its shaders through the HLSL
-translator into SDL_GPU shaders, clears and presents a few frames, and
-stops when its sound thread calls DirectSoundCreate8 (dsound #11), before
-its first draw. Still missing: DirectSound, XInput, Bink with
-DirectSound; the draw path is written but no draw has run yet. Next
-steps are under "Next" at the end.
+x86recomp (branch `d3d9`, ahead of main by DirectSound, XInput, WinMM
+timers and StretchRect). The game boots through its D3D9 setup, sound
+(DirectSound 3D), input and timers, and renders its first screens: the
+legal screen and "A long time ago..." are drawn through shaders
+translated from its HLSL (about 1,100 draws, 900 frames). It stops at the
+first draw with one of its 29 precompiled shaders (D3D9 bytecode, not
+HLSL). Still missing: a bytecode translator, Bink with DirectSound.
+Next steps are under "Next" at the end.
 
 ## The game
 - Steam app 32440, build 1017673. One EXE, `LEGOStarWarsSaga.exe`
@@ -337,11 +336,34 @@ statically (nothing executed). What the loader does, from its code:
   two matrix helpers (LookAtLH, OrthoLH) went in with it.
 - Then the sound thread (0x696D26) calls DirectSoundCreate8.
 
+## DirectSound, XInput, timers, first frames (2026-10-14)
+- Sound thread setup (0x696CC0): DirectSoundCreate8, SetCooperativeLevel
+  (DSSCL_PRIORITY), GetCaps, GetSpeakerConfig, a primary buffer with
+  DSBCAPS_CTRL3D set to 44.1 kHz 16-bit stereo, its 3D listener at the
+  origin facing +z with rolloff factor 0 (the game attenuates by
+  distance itself), all deferred then committed. It then creates and
+  fills 155 secondary buffers (Lock/Unlock) before the first frame.
+- XInput: the main thread polls XInputGetCapabilities for pads 0-3 every
+  frame (0x6DA200).
+- A worker (0x6998A0) runs a WinMM timer: timeSetEvent(500 ms,
+  resolution 100, TIME_PERIODIC | TIME_CALLBACK_EVENT_PULSE) on an event
+  handle, killing the previous one first.
+- Render targets: 1024x768 A8R8G8B8, X8R8G8B8 and R32F textures, a
+  640x2048 R32F pair, 512x512 targets with mips; StretchRect between
+  them (0x6E2347).
+- First frames (x86recomp 2ee5f99): legal screen, "A long time ago..."
+  fading, correct against the original's look; every draw so far is
+  DrawPrimitiveUP with the translated shaders.
+- Then the first draw with a precompiled shader. The EXE carries 29
+  (seen so far): vs_1_1 x10, vs_2_0 x2, vs_3_0 x2, ps_1_1 x5, ps_2_0 x6,
+  ps_3_0 x4 (42-566 tokens). LSWTCS_SHADER_DUMP writes them as .vso/.pso.
+
 ## Next
-1. DirectSound 8 (the sound thread; Bink uses it too), on x86recomp's
-   software mixer. Then the first draws through the programmable path.
-2. More HLSL as the game reaches more materials (textures, lighting,
-   skinning): check every dump with recomp_hlslc + glslang.
-3. XInput on SDL gamepads, Bink with DirectSound audio, WinMM timers.
+1. A D3D9 shader bytecode translator (shader models 1.1-3.0, to the same
+   GLSL contract as the HLSL translator), for the 29 precompiled
+   shaders; then on to the menus.
+2. More HLSL as the game reaches more materials: check every dump with
+   recomp_hlslc + glslang.
+3. Bink with DirectSound audio (BinkSoundUseDirectSound).
 4. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
    (after tracing the clock), resolution list.
