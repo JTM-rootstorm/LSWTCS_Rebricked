@@ -2,15 +2,14 @@
 
 ## Status (2026-10-14)
 The Steam EXE unpacks statically, is lifted, and runs natively on
-x86recomp (branch `d3d9`, ahead of main by the bytecode translator). The
-game boots through its D3D9 setup, sound (DirectSound 3D), input and
-timers, and runs its title screen: legal screen, opening text, then the
-LEGO Star Wars logo over a starfield with ships and the minifigure
-banners ("Press a key or controller button..."), drawn with shaders
-translated from its HLSL and from its precompiled bytecode (3,700
-frames). It stops when the attract-mode Bink movie starts
-(BinkSetSoundTrack). Still missing: Bink with DirectSound audio.
-Next steps are under "Next" at the end.
+x86recomp (branch `d3d9`, ahead of main by Bink 1.8 and the D3D9
+fixed-function path). Unattended it now loops through its whole attract
+sequence: legal screen, opening text, title screen ("Press a key or
+controller button...") with its 3D minifigures, then the attract-mode
+Bink movie with sound (demointro.bik, 1831 frames, drawn as 15 tiles
+with fixed-function draws), and back to the title screen, without a
+fatal error for as long as it runs. Next: input to get past the title
+screen into the menus. Next steps are under "Next" at the end.
 
 ## The game
 - Steam app 32440, build 1017673. One EXE, `LEGOStarWarsSaga.exe`
@@ -376,9 +375,34 @@ statically (nothing executed). What the loader does, from its code:
   list) and plays audio through DirectSound (BinkSetSoundSystem with
   BinkOpenDirectSound), not Miles.
 
+## Bink and the attract movie (2026-10-14)
+- binkw32.dll is Bink 1.8v (SHA-256 feeb17a6f9a8287061fe350c08ff017d8d92bec46773448101ef1e771c9a0118).
+- The game's Bink use (0x6318xx-0x631Dxx):
+  - Startup: BinkSetSoundSystem(BinkOpenDirectSound, its IDirectSound).
+  - Each movie: BinkSetSoundTrack(1, &track), with the language's track
+    from 0x4F5240, then BinkOpen(name, BINKSNDTRACK).
+  - If the movie's track list (BINK+0xD0 count, +0x250 IDs) lacks that
+    track, it closes it and reopens with the first ID. demointro.bik has
+    one track, ID 0, so it opens twice every time.
+  - BinkSetVolume(h, track, vol), and BinkSetVolume(h, 0, 0) to mute.
+  - Playback loop: BinkWait, then BinkDoFrame and BinkCopyToBufferRect
+    into fifteen 256x256 X8R8G8B8 DYNAMIC textures (LockRect DISCARD),
+    then BinkNextFrame until FrameNum == Frames.
+  - The tiles are drawn as pre-transformed quads with no shaders
+    (FVF XYZRHW | DIFFUSE | SPECULAR | TEX1, strips of 2): the D3D9
+    fixed-function path.
+  - BinkGetRealtime gives the time as FrameNum * FrameRateDiv / FrameRate.
+- The movie plays letterboxed at 1024x576 in the 1024x768 frame. A few
+  frames looked torn, but the trailer itself has wipe transitions
+  (decoded with ffmpeg directly: an edge moving 76 rows per frame,
+  frames 101-108).
+- x86recomp: Bink 1.8's API (6c849c9), D3D9 fixed-function draws
+  (1f978c8). The Bink change briefly silenced DS1's intro (older
+  BinkSetSoundTrack(0) + BINKSNDTRACK); fixed before the commit.
+
 ## Next
-1. Bink with DirectSound audio (BinkSetSoundTrack,
-   BinkSoundUseDirectSound), then the attract movie and the menus.
+1. Input past the title screen: keyboard through DirectInput
+   (<ID>_TEST_INPUT for automated runs), then the menus and a level.
 2. More shaders as the game reaches more materials: check every dump
    with recomp_hlslc + glslang (HLSL and .vso/.pso).
 3. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
