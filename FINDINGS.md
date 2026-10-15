@@ -2,14 +2,15 @@
 
 ## Status (2026-10-14)
 The Steam EXE unpacks statically, is lifted, and runs natively on
-x86recomp (main up to aaeab97, plus the HLSL translator on branch
-`d3d9`). The game creates its D3D9 device, render targets and buffers,
-sets up DirectInput, clears and presents its first frame, loads its
-first textures through D3DX, compiles its first three shader pairs
-through the HLSL translator, and stops at SetRenderTarget(1) (multiple
-render targets; see "D3D9 bring-up" and "HLSL"). Still missing: the
-draw path (programmable gfx::Device), DirectSound, XInput, Bink with
-DirectSound. Next steps are under "Next" at the end.
+x86recomp (main up to 374fbd4, plus the programmable gfx path on branch
+`d3d9`). The game creates its D3D9 device, render targets (including
+multiple render targets) and buffers, sets up DirectInput, loads its
+first textures through D3DX, compiles its shaders through the HLSL
+translator into SDL_GPU shaders, clears and presents a few frames, and
+stops when its sound thread calls DirectSoundCreate8 (dsound #11), before
+its first draw. Still missing: DirectSound, XInput, Bink with
+DirectSound; the draw path is written but no draw has run yet. Next
+steps are under "Next" at the end.
 
 ## The game
 - Steam app 32440, build 1017673. One EXE, `LEGOStarWarsSaga.exe`
@@ -325,15 +326,22 @@ statically (nothing executed). What the loader does, from its code:
   `__except_handler3`; VC8's handler4 and C++ catch continuations are
   untested until the game throws.
 
+## Programmable path (2026-10-14, x86recomp branch d3d9)
+- With the translated shaders on SDL_GPU (x86recomp fc6b186) the game
+  gets through its render-target setup: SetRenderTarget 1-2 (MRT, the
+  three-output material), 30 Clears, 7 Presents, 22 vertex and 24 pixel
+  shaders created (14 distinct sources so far), 13 vertex buffers, 12
+  declarations, no draw yet.
+- Two more imports on the way: kernel32 SetThreadPriority (the sound
+  thread, priority -2) and D3DXMatrixMultiply (0x5C0514); D3DX's other
+  two matrix helpers (LookAtLH, OrthoLH) went in with it.
+- Then the sound thread (0x696D26) calls DirectSoundCreate8.
+
 ## Next
-1. The programmable path in gfx::Device: shader modules from the
-   translated GLSL (glslang at run time, SPIRV-Cross for Metal), the
-   prelude (vertex pulling by declaration, position fix-ups), constant
-   registers, multiple render targets, float render targets in
-   pipelines; then the D3D9 draw calls on it.
+1. DirectSound 8 (the sound thread; Bink uses it too), on x86recomp's
+   software mixer. Then the first draws through the programmable path.
 2. More HLSL as the game reaches more materials (textures, lighting,
    skinning): check every dump with recomp_hlslc + glslang.
-3. DirectSound 8, XInput on SDL gamepads, Bink with DirectSound audio,
-   WinMM timers.
+3. XInput on SDL gamepads, Bink with DirectSound audio, WinMM timers.
 4. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
    (after tracing the clock), resolution list.
