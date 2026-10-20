@@ -1,15 +1,14 @@
 # Findings
 
-## Status (2026-10-14)
+## Status (2026-10-19)
 The Steam EXE unpacks statically, is lifted, and runs natively on
-x86recomp (branch `d3d9`, ahead of main by Bink 1.8 and the D3D9
-fixed-function path). Unattended it now loops through its whole attract
-sequence: legal screen, opening text, title screen ("Press a key or
-controller button...") with its 3D minifigures, then the attract-mode
-Bink movie with sound (demointro.bik, 1831 frames, drawn as 15 tiles
-with fixed-function draws), and back to the title screen, without a
-fatal error for as long as it runs. Next: input to get past the title
-screen into the menus. Next steps are under "Next" at the end.
+x86recomp main. The attract loop, the menus (keyboard through
+DirectInput) and New Game into the Mos Eisley cantina work, and with
+LSWTCS_LEVEL New Game starts any level directly: Negotiations, the pod
+race, the Ep III space battle, Tatooine and the Hoth snowspeeders load
+and play (walking, jumping, lightsaber, the Force, blasters) with no
+fatal error and every shader translated. Next steps are under "Next"
+at the end.
 
 ## The game
 - Steam app 32440, build 1017673. One EXE, `LEGOStarWarsSaga.exe`
@@ -400,10 +399,37 @@ statically (nothing executed). What the loader does, from its code:
   (1f978c8). The Bink change briefly silenced DS1's intro (older
   BinkSetSoundTrack(0) + BINKSNDTRACK); fixed before the commit.
 
+## Levels and the level warp (2026-10-19)
+- Default keyboard (Control Setup): WASD move, U jump, H action, J
+  special (hold: the Force), K tag, Space / L.Ctrl character toggle,
+  Enter start/pause. "Press a key or controller button" on the title
+  screen picks the device.
+- levels\levels.txt (in the DATs) is parsed by 0x5788F0, called once
+  from 0x4CA3EE: a table of 0x130-byte records (pointer at 0x951B78,
+  count at 0x951B84, at most 365). +0x00 directory (e.g.
+  `Episode_I\Negotiations\Negotiations_a`), +0x40 file name, +0x64
+  flags from the keywords: test_level 0x200 (skipped), newgame_level
+  0x10000 (record kept in 0x951B8C), loadgame_level 0x20000 (0x951B90),
+  plus intro/midtro/cutscene/outro/status_level. 335 records: each
+  chapter is split into sections (Negotiations_a/_b/_c), with
+  intro/outro cutscene levels and a _Status level; also bonus and
+  extra levels (New_Town, lego_city, ...), titles, Map, credits.
+- 0x951B80 is the next level: New Game (0x4950C8) copies 0x951B8C there
+  and sets 0x93D81C to 2; Load Game (0x494E47) does the same with
+  0x951B90. Many other places write it (doors, level ends).
+- src/level_warp.cpp replaces 0x5788F0 and, with LSWTCS_LEVEL=<file or
+  directory name>, points 0x951B8C at that record, so New Game starts
+  it. An unknown name logs the whole list.
+- Automated runs: `LSWTCS_LEVEL=Negotiations_a` and a TEST_INPUT of
+  Return at 12, 16, 20 and 24 s reach the level in about 30 s. Loading
+  time varies, and a Return that lands in the level pauses it.
+
 ## Next
-1. Input past the title screen: keyboard through DirectInput
-   (<ID>_TEST_INPUT for automated runs), then the menus and a level.
-2. More shaders as the game reaches more materials: check every dump
-   with recomp_hlslc + glslang (HLSL and .vso/.pso).
+1. Play further into levels: level ends and the _Status screens,
+   chapter-to-chapter transitions with their intro/outro cutscenes,
+   saving and loading, and sound in levels (music and effects not
+   checked by ear yet).
+2. More shaders as levels reach more materials: check every dump with
+   recomp_hlslc + glslang (HLSL and .vso/.pso).
 3. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
    (after tracing the clock), resolution list.

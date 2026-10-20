@@ -29,3 +29,6 @@ resume 006EA0F5
 # line and nShowCmd.
 name  006DE0E0 WinMain
 probe 006DE0E0 WinMain
+
+# levels\levels.txt parser; src/level_warp.cpp (LSWTCS_LEVEL test hook).
+replace 005788F0

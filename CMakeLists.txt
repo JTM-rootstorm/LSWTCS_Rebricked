@@ -19,7 +19,7 @@ add_subdirectory("${X86RECOMP_DIR}" x86recomp)
 # recomp_lift; see CLAUDE.md for the command).
 recomp_add_lifted(lswtcs_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if(TARGET lswtcs_lifted)
-  add_executable(lswtcs src/main.cpp $<TARGET_OBJECTS:lswtcs_lifted>)
+  add_executable(lswtcs src/main.cpp src/level_warp.cpp $<TARGET_OBJECTS:lswtcs_lifted>)
   # recomp_mss32 for the Bink HLE's audio.
   target_link_libraries(lswtcs PRIVATE recomp_runtime recomp_mss32 recomp_bink
                         recomp_d3d9 recomp_dinput8 recomp_dsound recomp_xinput)

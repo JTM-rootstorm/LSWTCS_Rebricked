@@ -41,8 +41,9 @@ to this game.
 - Lift (then re-run cmake; the generated file list is globbed):
   `out/build/release/x86recomp/tools/lifter/recomp_lift --exe unpacked/LEGOStarWarsSaga.exe --symbols symbols/LEGOStarWarsSaga --manifest manifest/LEGOStarWarsSaga.manifest --out generated`
 - Run: `out/build/release/lswtcs --game-dir "$HOME/.local/share/Steam/steamapps/common/Lego Star Wars Saga" --exe unpacked/LEGOStarWarsSaga.exe`
-  (LSWTCS_TRACE=1 logs every HLE call; LSWTCS_BACKGROUND=1 for automated
-  runs). Automated runs go inside a memory cap:
+  (LSWTCS_TRACE=1 logs every HLE call; LSWTCS_LEVEL=<name> makes New Game
+  start that level; LSWTCS_BACKGROUND=1 for automated runs). Automated
+  runs go inside a memory cap:
   `systemd-run --user --scope --quiet -p MemoryMax=6G -p MemorySwapMax=0 <command>`
 
 ## Product constraints
