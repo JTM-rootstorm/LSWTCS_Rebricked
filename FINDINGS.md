@@ -7,8 +7,9 @@ DirectInput) and New Game into the Mos Eisley cantina work, and with
 LSWTCS_LEVEL New Game starts any level directly: Negotiations, the pod
 race, the Ep III space battle, Tatooine and the Hoth snowspeeders load
 and play (walking, jumping, lightsaber, the Force, blasters) with no
-fatal error and every shader translated. Next steps are under "Next"
-at the end.
+fatal error and every shader translated. An Xbox pad works, and
+Negotiations plays through to its end tally. Next steps are under
+"Next" at the end.
 
 ## The game
 - Steam app 32440, build 1017673. One EXE, `LEGOStarWarsSaga.exe`
@@ -424,12 +425,43 @@ statically (nothing executed). What the loader does, from its code:
   Return at 12, 16, 20 and 24 s reach the level in about 30 s. Loading
   time varies, and a Return that lands in the level pauses it.
 
+## Controller, first playthrough (2026-10-19)
+- Pads: the game enumerates DirectInput keyboards, mice and game
+  controllers with one callback (0x6D9DF0) and runs the DirectX SDK's
+  IsXInputDevice (0x6D5080: WMI Win32_PNPEntity, DeviceID with "IG_",
+  VID/PID against the DirectInput product GUID) on each. Matches become
+  XInput slots (device type 6 at +0x4E34 in a 0x17C-byte record), which
+  0x6D74E0 polls with XInputGetState; 0x6DA200 only probes
+  XInputGetCapabilities. Without game controllers in DirectInput and
+  WMI the pad was never read. x86recomp 8a5d228 lists the SDL pads in
+  both; an Xbox Series X pad works.
+- Played (by hand, pad) from New Game through the cantina into
+  Negotiations: the chapter, its cutscenes and the end tally up to
+  "True Jedi". Then a fatal: indirect jmp at 0x460762 through a 4-entry
+  switch table (0x460BDC) neither Ghidra nor the lifter had recovered,
+  as nine x87 instructions sit between the cmp and the jmp. The lifter
+  (x86recomp 0b2980b) now finds it (30 recovered tables, was 28). The
+  only table jmps still dispatched dynamically are two CRT state
+  machines, 0x6F2F56 and 0x6F3EF1 (bounded by data and by a
+  push/pop constant), not hit so far.
+- Hitches when new effects appear (the first minikit; 1.2 s and 0.5 s
+  stalls entering Negotiations): SDL_GPU graphics pipeline creation,
+  60-90 ms each on NVIDIA (RTX 4080, 615.78), about 70 pipelines in the
+  first minute of the level, 2.3 s in all. Shader translation (about
+  1 ms) and glslang (1-2 ms per shader) are minor. SDL_GPU has no
+  pipeline cache API and the NVIDIA driver keeps no implicit Vulkan
+  disk cache here, so every run pays again.
+
 ## Next
-1. Play further into levels: level ends and the _Status screens,
-   chapter-to-chapter transitions with their intro/outro cutscenes,
-   saving and loading, and sound in levels (music and effects not
-   checked by ear yet).
-2. More shaders as levels reach more materials: check every dump with
+1. Pipeline compile stalls (above): options are compiling pipelines on
+   worker threads (skipping or deferring the draw until ready), a
+   recorded state cache replayed at startup, fewer pipeline variants
+   (state that need not be baked), or smaller shaders (the vertex
+   prelude's per-type fetch switch).
+2. Play on past the Negotiations tally: the minikit build, the
+   _Status screen, back to the cantina, saving and loading, the next
+   chapters; sound in levels by ear.
+3. More shaders as levels reach more materials: check every dump with
    recomp_hlslc + glslang (HLSL and .vso/.pso).
-3. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
+4. Then the enhancements: arbitrary aspect ratios, uncapped frame rate
    (after tracing the clock), resolution list.
