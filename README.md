@@ -23,7 +23,11 @@ Known issues:
 - Past the first chapter's tally (the minikit build, the status screen,
   saving and loading, later chapters) is largely untested, and so is
   in-level sound.
-- macOS has not been built yet.
+
+On macOS (Apple Silicon, Metal) it builds, passes its tests and runs:
+scripted runs show the attract movie, the title screen and the menus,
+reach the cantina at 60 fps and load Negotiations, but it has not been
+played by hand on the Mac yet.
 
 [FINDINGS.md](FINDINGS.md) tracks progress and next steps, and
 [ARCHITECTURE.md](ARCHITECTURE.md) the plan.
@@ -95,6 +99,17 @@ cmake --preset release && cmake --build --preset release
 # 5. Run.
 out/build/release/lswtcs --game-dir "$G" --exe unpacked/LEGOStarWarsSaga.exe
 ```
+
+**macOS** (Apple Silicon): SDL_GPU runs on Metal. With Homebrew (`brew
+install cmake ninja sdl3 ffmpeg llvm@22 glslang spirv-cross ghidra
+openjdk@21`), the steps are the same with these differences: CMake finds
+Homebrew's LLVM; pass `-DX86RECOMP_DIR=<path>` unless x86recomp is at
+`../../x86recomp`; `pe_symbols.py` needs `/opt/homebrew/opt/llvm@22/bin`
+on `PATH` (for `llvm-undname`); Ghidra's headless script is
+`$(brew --prefix ghidra)/libexec/support/analyzeHeadless`, run with
+`JAVA_HOME=$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home`
+(without a terminal it cannot ask for the JDK). Settings and saves live
+under `~/Library/Application Support/lswtcs`.
 
 Settings are the game's own (pcconfig.txt, Options menu). For testing:
 
