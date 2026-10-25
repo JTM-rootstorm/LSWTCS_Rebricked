@@ -11,27 +11,37 @@ build reads it from where you installed it.
 
 ## Status
 
-Groundwork. Nothing is playable yet. The Steam EXE unpacks, its code is
-lifted and starts natively: the C runtime and WinMain run up to the
-first Windows function not yet reimplemented. Direct3D 9 and the rest of
-the game's DirectX layer come next. [FINDINGS.md](FINDINGS.md) tracks
-progress and [ARCHITECTURE.md](ARCHITECTURE.md) the plan.
+In game on Linux. The attract movie, the menus and New Game into the
+Mos Eisley cantina work, and levels load and play: Negotiations has
+been played through to its end tally, and the pod race, the Episode III
+space battle, Tatooine and the Hoth snowspeeders run. Keyboard and Xbox
+pads both work. Every shader the game has used so far translates.
+
+Known issues:
+- Hitches (up to about a second) the first time a new effect appears (a
+  minikit, entering a level) while its graphics pipelines are built.
+- Past the first chapter's tally (the minikit build, the status screen,
+  saving and loading, later chapters) is largely untested, and so is
+  in-level sound.
+- macOS has not been built yet.
+
+[FINDINGS.md](FINDINGS.md) tracks progress and next steps, and
+[ARCHITECTURE.md](ARCHITECTURE.md) the plan.
 
 Developed against the Steam release (app 32440). Other releases need
 their own lifter manifests.
 
 ## How it works
 
-The port is built on [x86recomp](https://github.com/JTM-rootstorm/x86recomp),
-the static-recompilation library behind
-[DS1-Rebuilt](https://github.com/JTM-rootstorm/DS1-Rebuilt) (Dungeon
-Siege) and [CoD1-Reissued](https://github.com/JTM-rootstorm/CoD1-Reissued)
-(Call of Duty):
+The port is built on
+[x86recomp](https://jtm-rootstorm.github.io/x86recomp.github.io/), a
+static-recompilation library for x86 Windows games:
 
 - The game's 32-bit x86 code (`LEGOStarWarsSaga.exe`) is translated
   ahead of time into C++, with exact integer, x87 and SSE semantics, and
-  linked with a runtime that reimplements the Windows APIs the game uses
-  (Direct3D 9, DirectSound, DirectInput, XInput and Bink are to come).
+  linked with a runtime that reimplements the Windows APIs the game uses:
+  Direct3D 9 and D3DX (its HLSL and compiled shaders translated to
+  GLSL), DirectSound, DirectInput, XInput and Bink.
 - That recompiled code is scaffolding. The aim is native source: lifted
   functions are replaced by hand-written C++ one subsystem at a time,
   each checked against the exact lifted version, until nothing lifted is
@@ -40,8 +50,9 @@ Siege) and [CoD1-Reissued](https://github.com/JTM-rootstorm/CoD1-Reissued)
   Vulkan on Linux, Metal on macOS.
 
 This repository holds what is specific to this game: the Steam DRM
-unpacker, the game configuration, the lifter manifest, (later) the
-native replacements, and the docs.
+unpacker, the game configuration, the lifter manifest, game-side hooks
+(such as the level warp below), (later) the native replacements, and
+the docs.
 
 ## What you need
 
@@ -52,7 +63,8 @@ native replacements, and the docs.
   CMake 3.25 or newer, Ninja, Python 3, SDL3 and ffmpeg development
   packages, and glslang (`glslangValidator`, for the shaders).
 - Ghidra (12.1 used), headless, to find the game's functions.
-- A checkout of [x86recomp](https://github.com/JTM-rootstorm/x86recomp)
+- A checkout of
+  [x86recomp](https://jtm-rootstorm.github.io/x86recomp.github.io/)
   next to this one's parent folder (`../../x86recomp`), or pass
   `-DX86RECOMP_DIR=`.
 
@@ -83,6 +95,16 @@ cmake --preset release && cmake --build --preset release
 # 5. Run.
 out/build/release/lswtcs --game-dir "$G" --exe unpacked/LEGOStarWarsSaga.exe
 ```
+
+Settings are the game's own (pcconfig.txt, Options menu). For testing:
+
+- `LSWTCS_LEVEL=<name>` makes New Game start that level instead of the
+  cantina. The name is a level's file or directory name from the game's
+  levels\levels.txt (e.g. `Negotiations_a`); an unknown name logs the
+  list.
+- `LSWTCS_TRACE=1` logs every Windows API call.
+- `LSWTCS_BACKGROUND=1` keeps the window from taking the keyboard and
+  mouse (this also hides pads).
 
 ## Licence
 
