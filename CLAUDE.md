@@ -2,7 +2,7 @@
 
 Rules only. Status, findings and next steps go in FINDINGS.md; design in
 ARCHITECTURE.md. The lifter, x87 model, runtime and HLE are the shared
-x86recomp library (../../x86recomp, its own git repo with its own
+SwARc library (../../SwARc, its own git repo with its own
 CLAUDE.md, also used by DS1 and CoD1); this repo holds what is specific
 to this game.
 
@@ -14,9 +14,9 @@ to this game.
 - Game (Steam, app 32440; NEVER commit or copy into the repo):
   $HOME/.local/share/Steam/steamapps/common/Lego Star Wars Saga/
   (LEGOStarWarsSaga.exe, binkw32.dll, GAME.DAT, EPISODE_*.DAT, Audio/, Movies/)
-- Library: ~/Documents/Programming/Recomp/x86recomp
-  (github.com/JTM-rootstorm/x86recomp; added with add_subdirectory,
-  X86RECOMP_DIR overrides the path). Library changes are committed
+- Library: ~/Documents/Programming/Recomp/SwARc
+  (github.com/JTM-rootstorm/SwARc; added with add_subdirectory,
+  SWARC_DIR overrides the path). Library changes are committed
   there, its rules apply to them, and DS1 and CoD1 must keep building and
   passing their tests after them.
 - Unpacked EXE: unpacked/ (gitignored, regenerate, see below)
@@ -36,10 +36,10 @@ to this game.
 - `cmake --preset release && cmake --build --preset release` (debug:
   `--preset debug`). Output in out/build/<preset>/.
 - Symbols (after any Ghidra change that matters):
-  `python3 -I ../../x86recomp/tools/pe_symbols.py unpacked/LEGOStarWarsSaga.exe --out symbols/LEGOStarWarsSaga`
-  and `bash /usr/share/ghidra/support/analyzeHeadless "$PWD" lswtcs_recomp -process LEGOStarWarsSaga.exe -noanalysis -readOnly -scriptPath ../../x86recomp/tools/ghidra -postScript ExportFunctions.java symbols/LEGOStarWarsSaga/functions.tsv -postScript ExportJumpTables.java symbols/LEGOStarWarsSaga/jumptables.tsv`
+  `python3 -I ../../SwARc/tools/pe_symbols.py unpacked/LEGOStarWarsSaga.exe --out symbols/LEGOStarWarsSaga`
+  and `bash /usr/share/ghidra/support/analyzeHeadless "$PWD" lswtcs_recomp -process LEGOStarWarsSaga.exe -noanalysis -readOnly -scriptPath ../../SwARc/tools/ghidra -postScript ExportFunctions.java symbols/LEGOStarWarsSaga/functions.tsv -postScript ExportJumpTables.java symbols/LEGOStarWarsSaga/jumptables.tsv`
 - Lift (then re-run cmake; the generated file list is globbed):
-  `out/build/release/x86recomp/tools/lifter/recomp_lift --exe unpacked/LEGOStarWarsSaga.exe --symbols symbols/LEGOStarWarsSaga --manifest manifest/LEGOStarWarsSaga.manifest --out generated`
+  `out/build/release/swarc/tools/lifter/recomp_lift --exe unpacked/LEGOStarWarsSaga.exe --symbols symbols/LEGOStarWarsSaga --manifest manifest/LEGOStarWarsSaga.manifest --out generated`
 - Run: `out/build/release/lswtcs --game-dir "$HOME/.local/share/Steam/steamapps/common/Lego Star Wars Saga" --exe unpacked/LEGOStarWarsSaga.exe`
   (LSWTCS_TRACE=1 logs every HLE call; LSWTCS_LEVEL=<name> makes New Game
   start that level; LSWTCS_BACKGROUND=1 for automated runs). Automated
@@ -47,7 +47,7 @@ to this game.
   `systemd-run --user --scope --quiet -p MemoryMax=6G -p MemorySwapMax=0 <command>`
 
 ## Product constraints
-x86recomp's (its CLAUDE.md): no emulation or Wine in the product, 64-bit
+SwARc's (its CLAUDE.md): no emulation or Wine in the product, 64-bit
 host only, portable to macOS arm64 + Metal (graphics only through
 gfx::Device, never a host graphics API directly), exact x87.
 
@@ -59,12 +59,12 @@ gfx::Device, never a host graphics API directly), exact x87.
   Lifted/generated code is gitignored too.
 - Game knowledge (paths, registry, engine struct offsets, game patches
   such as widescreen/FOV/frame-rate fixes) goes in src/ here (GameConfig,
-  hooks, replacements), never in x86recomp. Generic Direct3D 9, D3DX,
-  DirectSound, DirectInput and XInput behaviour belongs in x86recomp.
-- x86recomp is shared by several projects and sessions: change it only
-  in a git worktree (`git -C ../../x86recomp worktree add
-  ../x86recomp-<topic> -b <topic> main`) and build this game against it
-  in its own build dir (-DX86RECOMP_DIR=...). Never edit its main
+  hooks, replacements), never in SwARc. Generic Direct3D 9, D3DX,
+  DirectSound, DirectInput and XInput behaviour belongs in SwARc.
+- SwARc is shared by several projects and sessions: change it only
+  in a git worktree (`git -C ../../SwARc worktree add
+  ../SwARc-<topic> -b <topic> main`) and build this game against it
+  in its own build dir (-DSWARC_DIR=...). Never edit its main
   checkout.
 - Ghidra names need evidence (strings, call-graph position, data layout,
   RTTI); record it in a plate comment. A function that merely looks like

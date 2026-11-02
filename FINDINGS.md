@@ -2,7 +2,7 @@
 
 ## Status (2026-10-19)
 The Steam EXE unpacks statically, is lifted, and runs natively on
-x86recomp main. The attract loop, the menus (keyboard through
+SwARc main. The attract loop, the menus (keyboard through
 DirectInput) and New Game into the Mos Eisley cantina work, and with
 LSWTCS_LEVEL New Game starts any level directly: Negotiations, the pod
 race, the Ep III space battle, Tatooine and the Hoth snowspeeders load
@@ -27,7 +27,7 @@ Negotiations plays through to its end tally. Next steps are under
 - Bink: the game ships binkw32.dll (SHA-256 feeb17a6...0118); the EXE
   imports 12 functions from it, including `BinkOpenDirectSound` and
   `BinkSetSoundSystem` (Bink audio through DirectSound, not Miles).
-  x86recomp's Bink HLE covers 10 entry points, not the same set, and its
+  SwARc's Bink HLE covers 10 entry points, not the same set, and its
   audio goes through Miles.
 
 ### Imports (198)
@@ -80,7 +80,7 @@ registry: see "To Direct3DCreate9".
 Whether game logic is tied to the frame rate (the console versions run
 at 30 or 60) is the key question for an uncapped frame rate.
 
-## First run (2026-10-14, x86recomp jumptable-dups, then 6496f03)
+## First run (2026-10-14, SwARc jumptable-dups, then 6496f03)
 `lswtcs` links (recomp_gfx directly, since there is no D3D9 module to
 bring it yet; recomp_mss32 for the Bink HLE). Run with LSWTCS_TRACE=1,
 LSWTCS_BACKGROUND=1 and an isolated XDG_DATA_HOME, under a 6 GB cap:
@@ -101,7 +101,7 @@ LSWTCS_BACKGROUND=1 and an isolated XDG_DATA_HOME, under a 6 GB cap:
   VerSetConditionMask, GetUserGeoID, OutputDebugStringW, FatalAppExitA,
   console functions). Some of these may never be called.
 
-## To Direct3DCreate9 (2026-10-14, x86recomp win32-startup, then bcc1aa9)
+## To Direct3DCreate9 (2026-10-14, SwARc win32-startup, then bcc1aa9)
 Run with LSWTCS_TRACE=1, LSWTCS_BACKGROUND=1, SDL_ASSERT=abort and an
 isolated XDG_DATA_HOME under the 6 GB cap: 1,623 HLE calls, then
 `FATAL: unimplemented import d3d9.dll!Direct3DCreate9 called (return
@@ -112,11 +112,11 @@ CoInitialize and SetThreadAffinityMask. Startup order (WinMain 0x6DE0E0):
    IGameExplorer::VerifyAccess on the EXE path (vtable +0x18). If the
    class cannot be created the check passes; only a VerifyAccess failure
    shows "You do not have sufficient permissions to play this game."
-   x86recomp's CoCreateInstance returns REGDB_E_CLASSNOTREG (no Game
+   SwARc's CoCreateInstance returns REGDB_E_CLASSNOTREG (no Game
    Explorer, as on XP), so it passes.
 2. SetThreadAffinityMask(GetCurrentThread(), 1): the main thread is
    pinned to CPU 0 for the rest of the run (the clock at 0x4FFBB0 also
-   pins the process while it reads QPC). x86recomp keeps the masks as
+   pins the process while it reads QPC). SwARc keeps the masks as
    bookkeeping and pins nothing on the host.
 3. 0x492B40 (the game's main), 0x4011E0: reads the language
    (0x6DC890, key from the EXE: `HKLM\SOFTWARE\LUCASARTS\LEGOSTARWARSSAGA`,
@@ -137,7 +137,7 @@ CoInitialize and SetThreadAffinityMask. Startup order (WinMain 0x6DE0E0):
   (CSIDL_LOCAL_APPDATA, CSIDL_PERSONAL if the flag were set) +
   `\LucasArts\LEGO Star Wars - The Complete Saga\`, created with
   SHCreateDirectoryExA when GetFileAttributesA fails; pcconfig.txt is
-  opened there with fopen. With x86recomp's folders that is
+  opened there with fopen. With SwARc's folders that is
   `$XDG_DATA_HOME/lswtcs/drive_c/Documents and Settings/Player/Local
   Settings/Application Data/LucasArts/LEGO Star Wars - The Complete
   Saga/pcconfig.txt`. shell32 SHGetFolderPathA and SHCreateDirectoryExA
@@ -156,9 +156,9 @@ CoInitialize and SetThreadAffinityMask. Startup order (WinMain 0x6DE0E0):
   VerifyVersionInfoA/VerSetConditionMask, CompareStringA/W,
   GetUserGeoID, the rest of the kernel32 list in "First run".
 
-## D3D9 bring-up (2026-10-14, x86recomp d3d9 c6b4334)
+## D3D9 bring-up (2026-10-14, SwARc d3d9 c6b4334)
 Build: `cmake --preset release -B out/build/release-d3d9
--DX86RECOMP_DIR=../../x86recomp-d3d9` (the game links recomp_d3d9 and
+-DSWARC_DIR=../../SwARc-d3d9` (the game links recomp_d3d9 and
 recomp_dinput8). Run as in CLAUDE.md with that binary.
 - D3D9 object (0x6E2BA0, before any window): GetDeviceCaps(HAL),
   GetAdapterIdentifier, GetAdapterDisplayMode. The desktop's aspect
@@ -185,26 +185,26 @@ recomp_dinput8). Run as in CLAUDE.md with that binary.
   and DirectInput joysticks/gamepads (types 0x14/0x15; "Saitek
   P2600/P2900" get a button-count fix). XInput pads are found by
   0x6DA200 polling XInputGetCapabilities for users 0-3 and read with
-  XInputGetState (0x6D74E0), so x86recomp's DirectInput reports no
+  XInputGetState (0x6D74E0), so SwARc's DirectInput reports no
   game controllers and pads go through XInput.
 - The CRT's SSE2 math (0x6F6xxx-0x6FDxxx, chosen because the CPU has
   SSE2) and the engine's SSE vector code (0x5B3060-0x5CD500: rsqrtps,
   4x4 transposes) needed SSE forms the lifter lacked; now lifted, and
   the oracle tests over this EXE pass: lift_x87, lift_int, lift_sse (550
-  forms). RSQRTPS is the correctly rounded 1/sqrt (x86recomp sse.h).
+  forms). RSQRTPS is the correctly rounded 1/sqrt (SwARc sse.h).
 - Unimplemented sites are 1,000 (the earlier count of 1,044 missed
   every address written with an uppercase hex digit; recounted, all
   remaining ones are data decoded as code: ASCII-shaped addresses and
   pointer tables).
-- Asset loading (x86recomp 0ff2f20): two 256x256 DXT3 cube maps with
+- Asset loading (SwARc 0ff2f20): two 256x256 DXT3 cube maps with
   one mip level (D3DXCreateCubeTextureFromFileInMemory; D3DX would
-  generate the other eight by recompressing, x86recomp keeps one and
+  generate the other eight by recompressing, SwARc keeps one and
   warns) and a 32x32 DXT1 texture with all six levels.
 - Stopped at the first D3DXCompileShader (vs_3_0, entry vertexProgram,
   14,522 bytes; return 0x743E6E). See "HLSL".
 
 ## HLSL (2026-10-14, first sample)
-`LSWTCS_SHADER_DUMP=dir` (x86recomp aaeab97) writes every source
+`LSWTCS_SHADER_DUMP=dir` (SwARc aaeab97) writes every source
 D3DXCompileShader gets. The first one ("Uber Shader v2.0", 646 lines):
 - One effect-style file per material, compiled twice: vs_3_0 with entry
   `vertexProgram`, ps_3_0 with `fragmentProgram` (a `technique
@@ -230,7 +230,7 @@ D3DXCompileShader gets. The first one ("Uber Shader v2.0", 646 lines):
   the run stops at the first compile until the translator returns
   something.
 
-## HLSL translator in the game (2026-10-14, x86recomp branch d3d9)
+## HLSL translator in the game (2026-10-14, SwARc branch d3d9)
 - Caller (0x743DA0): compiles `vertexProgram` (vs_x) and, when it has a
   pixel source, `fragmentProgram` (ps_x); the profile pair comes from
   the shader model (1_1, 2_0, 2_a, 3_0 strings at 0x7E8B40..78). Flags
@@ -294,7 +294,7 @@ statically (nothing executed). What the loader does, from its code:
   payload offsets are those of this SteamDRMP.dll build and every step is
   checked, so a different build fails with a message, not garbage.
 
-## Lift (2026-10-14, x86recomp 0cadefc + branch jumptable-dups)
+## Lift (2026-10-14, SwARc 0cadefc + branch jumptable-dups)
 - Ghidra 12.1.4 auto-analysis: 7,431 functions, 501 jump tables.
 - recomp_lift: 13,091 functions (5,660 discovered: 1,614 via code
   pointers, 3,930 via data pointers; 5,538 weak), 28 jump tables
@@ -305,7 +305,7 @@ statically (nothing executed). What the loader does, from its code:
   ...): weak entries from string bytes read as code pointers, landing
   mid-instruction. Expected to be unreachable; any that is reached is a
   fatal error naming the VA.
-- Two lifter bugs this EXE exposed, fixed on x86recomp branch
+- Two lifter bugs this EXE exposed, fixed on SwARc branch
   `jumptable-dups` (DS1 and CoD1 lifter output byte-identical before and
   after):
   - Recovered jump tables kept repeated targets, which became duplicate
@@ -321,12 +321,12 @@ statically (nothing executed). What the loader does, from its code:
     need EFLAGS as an input).
 - SEH and C++ exception resume sites are in the manifest
   (`_EH4_TransferToHandler`'s `jmp esi`, `_JumpToContinuation`'s
-  `jmp eax`). x86recomp's resume mechanism was built on VC6/VC7's
+  `jmp eax`). SwARc's resume mechanism was built on VC6/VC7's
   `__except_handler3`; VC8's handler4 and C++ catch continuations are
   untested until the game throws.
 
-## Programmable path (2026-10-14, x86recomp branch d3d9)
-- With the translated shaders on SDL_GPU (x86recomp fc6b186) the game
+## Programmable path (2026-10-14, SwARc branch d3d9)
+- With the translated shaders on SDL_GPU (SwARc fc6b186) the game
   gets through its render-target setup: SetRenderTarget 1-2 (MRT, the
   three-output material), 30 Clears, 7 Presents, 22 vertex and 24 pixel
   shaders created (14 distinct sources so far), 13 vertex buffers, 12
@@ -351,7 +351,7 @@ statically (nothing executed). What the loader does, from its code:
 - Render targets: 1024x768 A8R8G8B8, X8R8G8B8 and R32F textures, a
   640x2048 R32F pair, 512x512 targets with mips; StretchRect between
   them (0x6E2347).
-- First frames (x86recomp 2ee5f99): legal screen, "A long time ago..."
+- First frames (SwARc 2ee5f99): legal screen, "A long time ago..."
   fading, correct against the original's look; every draw so far is
   DrawPrimitiveUP with the translated shaders.
 - Then the first draw with a precompiled shader. The EXE carries 29
@@ -359,7 +359,7 @@ statically (nothing executed). What the loader does, from its code:
   ps_3_0 x4 (42-566 tokens). LSWTCS_SHADER_DUMP writes them as .vso/.pso.
 
 ## Precompiled shaders, title screen (2026-10-14)
-- With the bytecode translator (x86recomp 8e7e523) every shader of the
+- With the bytecode translator (SwARc 8e7e523) every shader of the
   run translates and compiles: 29 precompiled (.vso/.pso) and 82 HLSL
   sources (41 pairs). The precompiled ones use mov/add/mul/mad, dp3/dp4,
   min/max, rcp/rsq, lit, expp (vs_1_1), lrp, cmp, tex/texcoord (ps_1_1,
@@ -396,7 +396,7 @@ statically (nothing executed). What the loader does, from its code:
   frames looked torn, but the trailer itself has wipe transitions
   (decoded with ffmpeg directly: an edge moving 76 rows per frame,
   frames 101-108).
-- x86recomp: Bink 1.8's API (6c849c9), D3D9 fixed-function draws
+- SwARc: Bink 1.8's API (6c849c9), D3D9 fixed-function draws
   (1f978c8). The Bink change briefly silenced DS1's intro (older
   BinkSetSoundTrack(0) + BINKSNDTRACK); fixed before the commit.
 
@@ -433,14 +433,14 @@ statically (nothing executed). What the loader does, from its code:
   XInput slots (device type 6 at +0x4E34 in a 0x17C-byte record), which
   0x6D74E0 polls with XInputGetState; 0x6DA200 only probes
   XInputGetCapabilities. Without game controllers in DirectInput and
-  WMI the pad was never read. x86recomp 8a5d228 lists the SDL pads in
+  WMI the pad was never read. SwARc 8a5d228 lists the SDL pads in
   both; an Xbox Series X pad works.
 - Played (by hand, pad) from New Game through the cantina into
   Negotiations: the chapter, its cutscenes and the end tally up to
   "True Jedi". Then a fatal: indirect jmp at 0x460762 through a 4-entry
   switch table (0x460BDC) neither Ghidra nor the lifter had recovered,
   as nine x87 instructions sit between the cmp and the jmp. The lifter
-  (x86recomp 0b2980b) now finds it (30 recovered tables, was 28). The
+  (SwARc 0b2980b) now finds it (30 recovered tables, was 28). The
   only table jmps still dispatched dynamically are two CRT state
   machines, 0x6F2F56 and 0x6F3EF1 (bounded by data and by a
   push/pop constant), not hit so far.

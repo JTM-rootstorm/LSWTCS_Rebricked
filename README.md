@@ -38,7 +38,7 @@ their own lifter manifests.
 ## How it works
 
 The port is built on
-[x86recomp](https://jtm-rootstorm.github.io/x86recomp.github.io/), a
+[SwARc](https://jtm-rootstorm.github.io/SwARc.site/), a
 static-recompilation library for x86 Windows games:
 
 - The game's 32-bit x86 code (`LEGOStarWarsSaga.exe`) is translated
@@ -50,7 +50,7 @@ static-recompilation library for x86 Windows games:
   functions are replaced by hand-written C++ one subsystem at a time,
   each checked against the exact lifted version, until nothing lifted is
   left.
-- Graphics go through x86recomp's backend-neutral device on SDL_GPU:
+- Graphics go through SwARc's backend-neutral device on SDL_GPU:
   Vulkan on Linux, Metal on macOS.
 
 This repository holds what is specific to this game: the Steam DRM
@@ -68,9 +68,9 @@ the docs.
   packages, and glslang (`glslangValidator`, for the shaders).
 - Ghidra (12.1 used), headless, to find the game's functions.
 - A checkout of
-  [x86recomp](https://jtm-rootstorm.github.io/x86recomp.github.io/)
-  next to this one's parent folder (`../../x86recomp`), or pass
-  `-DX86RECOMP_DIR=`.
+  [SwARc](https://jtm-rootstorm.github.io/SwARc.site/)
+  next to this one's parent folder (`../../SwARc`), or pass
+  `-DSWARC_DIR=`.
 
 ## Building
 
@@ -85,14 +85,14 @@ cmake --preset release && cmake --build --preset release
 
 # 3. Find the functions: import into Ghidra, analyse, export.
 bash /usr/share/ghidra/support/analyzeHeadless "$PWD" lswtcs_recomp -import unpacked/LEGOStarWarsSaga.exe
-python3 -I ../../x86recomp/tools/pe_symbols.py unpacked/LEGOStarWarsSaga.exe --out symbols/LEGOStarWarsSaga
+python3 -I ../../SwARc/tools/pe_symbols.py unpacked/LEGOStarWarsSaga.exe --out symbols/LEGOStarWarsSaga
 bash /usr/share/ghidra/support/analyzeHeadless "$PWD" lswtcs_recomp -process LEGOStarWarsSaga.exe -noanalysis -readOnly \
-  -scriptPath ../../x86recomp/tools/ghidra \
+  -scriptPath ../../SwARc/tools/ghidra \
   -postScript ExportFunctions.java symbols/LEGOStarWarsSaga/functions.tsv \
   -postScript ExportJumpTables.java symbols/LEGOStarWarsSaga/jumptables.tsv
 
 # 4. Lift, then build the game.
-out/build/release/x86recomp/tools/lifter/recomp_lift --exe unpacked/LEGOStarWarsSaga.exe \
+out/build/release/swarc/tools/lifter/recomp_lift --exe unpacked/LEGOStarWarsSaga.exe \
   --symbols symbols/LEGOStarWarsSaga --manifest manifest/LEGOStarWarsSaga.manifest --out generated
 cmake --preset release && cmake --build --preset release
 
@@ -103,8 +103,8 @@ out/build/release/lswtcs --game-dir "$G" --exe unpacked/LEGOStarWarsSaga.exe
 **macOS** (Apple Silicon): SDL_GPU runs on Metal. With Homebrew (`brew
 install cmake ninja sdl3 ffmpeg llvm@22 glslang spirv-cross ghidra
 openjdk@21`), the steps are the same with these differences: CMake finds
-Homebrew's LLVM; pass `-DX86RECOMP_DIR=<path>` unless x86recomp is at
-`../../x86recomp`; `pe_symbols.py` needs `/opt/homebrew/opt/llvm@22/bin`
+Homebrew's LLVM; pass `-DSWARC_DIR=<path>` unless SwARc is at
+`../../SwARc`; `pe_symbols.py` needs `/opt/homebrew/opt/llvm@22/bin`
 on `PATH` (for `llvm-undname`); Ghidra's headless script is
 `$(brew --prefix ghidra)/libexec/support/analyzeHeadless`, run with
 `JAVA_HOME=$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home`

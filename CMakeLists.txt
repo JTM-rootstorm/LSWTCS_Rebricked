@@ -4,16 +4,16 @@ project(lswtcs LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-# x86recomp's runtime and HLE modules are shared libraries: rebuilding one
+# SwARc's runtime and HLE modules are shared libraries: rebuilding one
 # does not relink the game.
 set(CMAKE_LINK_DEPENDS_NO_SHARED ON)
 
-# x86recomp: the lifter, x87 model and runtime (a sibling checkout).
-set(X86RECOMP_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../x86recomp"
-    CACHE PATH "x86recomp source tree")
+# SwARc: the lifter, x87 model and runtime (a sibling checkout).
+set(SWARC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../SwARc"
+    CACHE PATH "SwARc source tree")
 
 enable_testing()
-add_subdirectory("${X86RECOMP_DIR}" x86recomp)
+add_subdirectory("${SWARC_DIR}" swarc)
 
 # The game: runtime + HLE + lifted code (generated/, produced by
 # recomp_lift; see CLAUDE.md for the command).
