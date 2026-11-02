@@ -17,9 +17,9 @@
 #include <cstring>
 #include <string>
 
-#include "runtime/lifted.h"
 #include "runtime/log.h"
-#include "runtime/runtime.h"
+#include "x86/lifted.h"
+#include "x86/runtime.h"
 
 namespace recomp::gen {
 

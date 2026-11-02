@@ -92,7 +92,7 @@ bash /usr/share/ghidra/support/analyzeHeadless "$PWD" lswtcs_recomp -process LEG
   -postScript ExportJumpTables.java symbols/LEGOStarWarsSaga/jumptables.tsv
 
 # 4. Lift, then build the game.
-out/build/release/swarc/tools/lifter/recomp_lift --exe unpacked/LEGOStarWarsSaga.exe \
+out/build/release/swarc/tools/lifter_x86/recomp_lift --exe unpacked/LEGOStarWarsSaga.exe \
   --symbols symbols/LEGOStarWarsSaga --manifest manifest/LEGOStarWarsSaga.manifest --out generated
 cmake --preset release && cmake --build --preset release
 

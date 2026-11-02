@@ -39,7 +39,7 @@ to this game.
   `python3 -I ../../SwARc/tools/pe_symbols.py unpacked/LEGOStarWarsSaga.exe --out symbols/LEGOStarWarsSaga`
   and `bash /usr/share/ghidra/support/analyzeHeadless "$PWD" lswtcs_recomp -process LEGOStarWarsSaga.exe -noanalysis -readOnly -scriptPath ../../SwARc/tools/ghidra -postScript ExportFunctions.java symbols/LEGOStarWarsSaga/functions.tsv -postScript ExportJumpTables.java symbols/LEGOStarWarsSaga/jumptables.tsv`
 - Lift (then re-run cmake; the generated file list is globbed):
-  `out/build/release/swarc/tools/lifter/recomp_lift --exe unpacked/LEGOStarWarsSaga.exe --symbols symbols/LEGOStarWarsSaga --manifest manifest/LEGOStarWarsSaga.manifest --out generated`
+  `out/build/release/swarc/tools/lifter_x86/recomp_lift --exe unpacked/LEGOStarWarsSaga.exe --symbols symbols/LEGOStarWarsSaga --manifest manifest/LEGOStarWarsSaga.manifest --out generated`
 - Run: `out/build/release/lswtcs --game-dir "$HOME/.local/share/Steam/steamapps/common/Lego Star Wars Saga" --exe unpacked/LEGOStarWarsSaga.exe`
   (LSWTCS_TRACE=1 logs every HLE call; LSWTCS_LEVEL=<name> makes New Game
   start that level; LSWTCS_BACKGROUND=1 for automated runs). Automated

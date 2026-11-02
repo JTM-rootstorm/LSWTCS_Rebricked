@@ -16,7 +16,7 @@
 #include <string>
 
 #include "runtime/log.h"
-#include "runtime/runtime.h"
+#include "win32/process.h"
 
 int main(int argc, char** argv) {
   std::string game_dir, exe, game_args;
@@ -59,7 +59,7 @@ int main(int argc, char** argv) {
       return 2;
     }
 
-  recomp::GameConfig game;
+  recomp::win32::GameConfig game;
   game.id = "lswtcs";
   game.guest_dir = "C:\\Program Files\\LEGO Star Wars Saga";
   game.exe_name = "LEGOStarWarsSaga.exe";

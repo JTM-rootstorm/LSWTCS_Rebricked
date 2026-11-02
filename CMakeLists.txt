@@ -21,7 +21,7 @@ recomp_add_lifted(lswtcs_lifted "${CMAKE_CURRENT_SOURCE_DIR}/generated")
 if(TARGET lswtcs_lifted)
   add_executable(lswtcs src/main.cpp src/level_warp.cpp $<TARGET_OBJECTS:lswtcs_lifted>)
   # recomp_mss32 for the Bink HLE's audio.
-  target_link_libraries(lswtcs PRIVATE recomp_runtime recomp_mss32 recomp_bink
+  target_link_libraries(lswtcs PRIVATE recomp_win32 recomp_mss32 recomp_bink
                         recomp_d3d9 recomp_dinput8 recomp_dsound recomp_xinput)
   set_target_properties(lswtcs PROPERTIES ENABLE_EXPORTS ON)  # symbol names in fault backtraces
 endif()
