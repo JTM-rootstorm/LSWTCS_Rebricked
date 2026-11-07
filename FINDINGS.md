@@ -465,8 +465,30 @@ statically (nothing executed). What the loader does, from its code:
   unlike the 615.78 runs above, so the stalls are a first-play cost.
 - LSWTCS_LEVEL=negotiations_status warps to the chapter's tally screen,
   but with nothing collected: an empty stud counter, no True Jedi. It
-  does not reach the 0x460762 switch; confirming that fix needs a
-  played chapter.
+  does not reach the 0x460762 switch. Played by hand (pad, release
+  build at 19799ac): Negotiations through True Jedi and on, no crash, so
+  the recovered table fixes it. Frame pacing felt uneven (below).
+
+## Frame pacing (2026-11-07)
+- On a 120 Hz display the game ran at 88 fps, frame intervals 8-14 ms,
+  the GPU nearly idle: it Sleeps 2-7 ms a frame from 0x4FD318.
+- 0x4FD050 (the per-frame update) times the frame with the QPC clock
+  (0x4FFB20) and, if it took less than 1 / max(85, R) s, Sleeps the rest
+  in whole milliseconds (hence 88, not 85). R comes from 0x6DF270, its
+  only caller being 0x4FD050: the device's FullScreen_RefreshRateInHz
+  (present parameters at 0x2976700, +0x30). The same function sets a
+  flag (0x8004E4, 0x14, or 1 when a frame took over 1.1 / min(85, R)) it
+  passes to 0x4FF0C0.
+- The game keeps only display modes of 640x480 (800x600 in some cases)
+  and up at 40-85 Hz (0x6E42D0) and saves the chosen rate as
+  ScreenRefreshRate. Reporting 119 Hz modes from D3D9 leaves it with no
+  modes and a garbage back buffer size in CreateDevice, so R stays at
+  most 85 and a faster display gets the 85 fps cap on Windows too.
+- src/frame_limiter.cpp replaces 0x6DF270 with the host's refresh rate
+  (SwARc DesktopRefreshRate): 120 fps, intervals 8.0-8.6 ms (p1-p99)
+  in Negotiations_a, vsync pacing. At 85 Hz or less nothing changes.
+  Game speed above 85 fps is by the frame time (the limiter already let
+  it vary from 60 to 88); not yet checked past 120 Hz.
 
 ## Next
 1. Pipeline compile stalls on first play (the driver caches them after,

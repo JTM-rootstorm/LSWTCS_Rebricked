@@ -32,3 +32,6 @@ probe 006DE0E0 WinMain
 
 # levels\levels.txt parser; src/level_warp.cpp (LSWTCS_LEVEL test hook).
 replace 005788F0
+
+# The frame limiter's refresh rate; src/frame_limiter.cpp.
+replace 006DF270
