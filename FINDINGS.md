@@ -452,12 +452,27 @@ statically (nothing executed). What the loader does, from its code:
   pipeline cache API and the NVIDIA driver keeps no implicit Vulkan
   disk cache here, so every run pays again.
 
+## Pipeline cache, tally warp (2026-11-06, SwARc 30bd2ad)
+- Re-lifted with SwARc's x86 core after the rename (13,091 functions,
+  30 recovered jump tables) and rebuilt; Negotiations_a still loads and
+  plays.
+- Pipeline creation timed per ShaderPipeline over two runs into
+  Negotiations_a (NVIDIA 620.70.06, RTX 4080): the first run created 114
+  pipelines in 2,127 ms (25-80 ms for each new vertex/pixel pair, 4-9 ms
+  for another state variant of a pair already seen); the second run 106
+  in 9 ms (at most 0.9 ms). The driver's own disk cache
+  (~/.cache/nvidia/GLCache) now keeps our Vulkan pipelines between runs,
+  unlike the 615.78 runs above, so the stalls are a first-play cost.
+- LSWTCS_LEVEL=negotiations_status warps to the chapter's tally screen,
+  but with nothing collected: an empty stud counter, no True Jedi. It
+  does not reach the 0x460762 switch; confirming that fix needs a
+  played chapter.
+
 ## Next
-1. Pipeline compile stalls (above): options are compiling pipelines on
-   worker threads (skipping or deferring the draw until ready), a
-   recorded state cache replayed at startup, fewer pipeline variants
-   (state that need not be baked), or smaller shaders (the vertex
-   prelude's per-type fetch switch).
+1. Pipeline compile stalls on first play (the driver caches them after,
+   above): compiling on worker threads (deferring the draw until ready)
+   or smaller shaders (the vertex prelude's per-type fetch switch), if
+   first-play hitches matter.
 2. Play on past the Negotiations tally: the minikit build, the
    _Status screen, back to the cantina, saving and loading, the next
    chapters; sound in levels by ear.
