@@ -8,8 +8,9 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # does not relink the game.
 set(CMAKE_LINK_DEPENDS_NO_SHARED ON)
 
-# SwARc: the lifter, x87 model and runtime (a sibling checkout).
-set(SWARC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../SwARc"
+# SwARc: the lifter, x87 model and runtime, on its win32 module branch
+# (the SwARc-win32 worktree beside the SwARc checkout).
+set(SWARC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../SwARc-win32"
     CACHE PATH "SwARc source tree")
 
 enable_testing()
