@@ -14,12 +14,11 @@ to this game.
 - Game (Steam, app 32440; NEVER commit or copy into the repo):
   $HOME/.local/share/Steam/steamapps/common/Lego Star Wars Saga/
   (LEGOStarWarsSaga.exe, binkw32.dll, GAME.DAT, EPISODE_*.DAT, Audio/, Movies/)
-- Library: SwARc (github.com/JTM-rootstorm/SwARc), built from its
-  `win32` branch in the ~/Documents/Programming/Recomp/SwARc-win32
-  worktree (added with add_subdirectory, SWARC_DIR overrides the path).
-  Branches stack win32 -> x86_64 -> main. Library changes are committed
-  there, its rules apply to them, and DS1 and CoD1 must keep building and
-  passing their tests after them.
+- Library: SwARc (github.com/JTM-rootstorm/SwARc), built from its main
+  in ~/Documents/Programming/Recomp/SwARc (added with add_subdirectory,
+  SWARC_DIR overrides the path). Library changes follow its rules
+  (including "Branches and landing"), and DS1 and CoD1 must keep building
+  and passing their tests after them.
 - Unpacked EXE: unpacked/ (gitignored, regenerate, see below)
 - Symbols: symbols/LEGOStarWarsSaga/ (gitignored). Lifter manifest:
   manifest/LEGOStarWarsSaga.manifest
@@ -64,11 +63,9 @@ gfx::Device, never a host graphics API directly), exact x87.
   DirectSound, DirectInput and XInput behaviour belongs in SwARc.
 - SwARc is shared by several projects and sessions: change it only
   in a topic worktree and build this game against it in its own build
-  dir (-DSWARC_DIR=...). Never edit the SwARc or SwARc-win32 checkouts.
-  Windows work (Win32 HLE, MSVC CRT, Direct3D, DirectSound, ...) branches
-  from `win32` (`git -C ../../SwARc worktree add ../SwARc-<topic> -b
-  <topic> win32`); generic x86 work (lifter, CPU model, x87) branches
-  from `x86_64`, and win32 is then rebased onto it.
+  dir (-DSWARC_DIR=...). Never edit the SwARc checkout itself. Topics
+  branch from main (`git -C ../../SwARc worktree add ../SwARc-<topic> -b
+  <topic> main`) and land with SwARc's tools/land.py.
 - Ghidra names need evidence (strings, call-graph position, data layout,
   RTTI); record it in a plate comment. A function that merely looks like
   a known one stays unnamed until confirmed.
