@@ -13,16 +13,24 @@ build reads it from where you installed it.
 
 In game on Linux. The attract movie, the menus and New Game into the
 Mos Eisley cantina work, and levels load and play: Negotiations has
-been played through to its end tally, and the pod race, the Episode III
-space battle, Tatooine and the Hoth snowspeeders run. Keyboard and Xbox
-pads both work. Every shader the game has used so far translates.
+been played through its end tally and on, and the pod race, the
+Episode III space battle, Tatooine and the Hoth snowspeeders run.
+Keyboard and Xbox pads both work, and every shader the game has used so
+far translates.
+
+The frame rate follows the display: the original caps itself at about
+85 fps (it only accepts display modes up to 85 Hz), and the port paces
+it by the host's refresh rate instead, so a 120 Hz display gets a steady
+120 fps.
 
 Known issues:
-- Hitches (up to about a second) the first time a new effect appears (a
-  minikit, entering a level) while its graphics pipelines are built.
-- Past the first chapter's tally (the minikit build, the status screen,
-  saving and loading, later chapters) is largely untested, and so is
-  in-level sound.
+- Hitches (up to about a second) the first time a new effect or level
+  is seen, while its graphics pipelines are built. The driver caches
+  them, so later plays are smooth.
+- Past the first chapter (the minikit build, the status screen, saving
+  and loading, later chapters) is largely untested, and so is sound in
+  levels.
+- Game speed above 120 fps has not been checked.
 
 On macOS (Apple Silicon, Metal) it builds, passes its tests and runs:
 scripted runs show the attract movie, the title screen and the menus,
@@ -38,8 +46,9 @@ their own lifter manifests.
 ## How it works
 
 The port is built on
-[SwARc](https://jtm-rootstorm.github.io/SwARc.site/), a
-static-recompilation library for x86 Windows games:
+[SwARc](https://github.com/JTM-rootstorm/SwARc), a static-recompilation
+library shared with other game ports
+([project site](https://jtm-rootstorm.github.io/SwARc.site/)):
 
 - The game's 32-bit x86 code (`LEGOStarWarsSaga.exe`) is translated
   ahead of time into C++, with exact integer, x87 and SSE semantics, and
@@ -55,7 +64,7 @@ static-recompilation library for x86 Windows games:
 
 This repository holds what is specific to this game: the Steam DRM
 unpacker, the game configuration, the lifter manifest, game-side hooks
-(such as the level warp below), (later) the native replacements, and
+and patches (`src/`: the level warp and the frame limiter so far), and
 the docs.
 
 ## What you need
@@ -67,15 +76,18 @@ the docs.
   CMake 3.25 or newer, Ninja, Python 3, SDL3 and ffmpeg development
   packages, and glslang (`glslangValidator`, for the shaders).
 - Ghidra (12.1 used), headless, to find the game's functions.
-- A checkout of
-  [SwARc](https://jtm-rootstorm.github.io/SwARc.site/)
-  next to this one's parent folder (`../../SwARc`), or pass
-  `-DSWARC_DIR=`.
+- A checkout of SwARc's `main` two folders up (`../../SwARc`, next to
+  this repository's parent folder), or pass `-DSWARC_DIR=` to cmake.
 
 ## Building
 
+From this repository's folder:
+
 ```sh
 G="$HOME/.local/share/Steam/steamapps/common/Lego Star Wars Saga"
+
+# 0. SwARc, if you don't have it yet.
+git clone https://github.com/JTM-rootstorm/SwARc.git ../../SwARc
 
 # 1. Unpack the Steam EXE (static; nothing from the game is executed).
 python3 -I tools/unpack_steamstub.py "$G/LEGOStarWarsSaga.exe" -o unpacked/LEGOStarWarsSaga.exe
@@ -100,29 +112,63 @@ cmake --preset release && cmake --build --preset release
 out/build/release/lswtcs --game-dir "$G" --exe unpacked/LEGOStarWarsSaga.exe
 ```
 
+`unpacked/`, `symbols/`, `generated/` and the Ghidra project are
+ignored by git. After updating SwARc, lift again (step 4): the lifted
+code follows the library's headers. The `debug` preset works the same
+way (`out/build/debug`).
+
+Settings are the game's own (pcconfig.txt, the Options menu). They and
+the saves live under `$XDG_DATA_HOME/lswtcs` (by default
+`~/.local/share/lswtcs`).
+
 **macOS** (Apple Silicon): SDL_GPU runs on Metal. With Homebrew (`brew
 install cmake ninja sdl3 ffmpeg llvm@22 glslang spirv-cross ghidra
 openjdk@21`), the steps are the same with these differences: CMake finds
-Homebrew's LLVM; pass `-DSWARC_DIR=<path>` unless SwARc is at
-`../../SwARc`; `pe_symbols.py` needs `/opt/homebrew/opt/llvm@22/bin`
+Homebrew's LLVM; `pe_symbols.py` needs `/opt/homebrew/opt/llvm@22/bin`
 on `PATH` (for `llvm-undname`); Ghidra's headless script is
 `$(brew --prefix ghidra)/libexec/support/analyzeHeadless`, run with
 `JAVA_HOME=$(brew --prefix openjdk@21)/libexec/openjdk.jdk/Contents/Home`
 (without a terminal it cannot ask for the JDK). Settings and saves live
 under `~/Library/Application Support/lswtcs`.
 
-Settings are the game's own (pcconfig.txt, Options menu). For testing:
+## Tests
+
+`ctest --test-dir out/build/release` runs SwARc's tests (the x87 model
+against the host's x87 and its SoftFloat reference, and more). Configure
+with `-DLSWTCS_GAME_EXE=unpacked/LEGOStarWarsSaga.exe` to add the
+EXE-derived tests: every instruction form in the game, lifted versus
+executed natively.
+
+## Useful switches
+
+Environment variables, for testing and debugging:
 
 - `LSWTCS_LEVEL=<name>` makes New Game start that level instead of the
   cantina. The name is a level's file or directory name from the game's
   levels\levels.txt (e.g. `Negotiations_a`); an unknown name logs the
   list.
-- `LSWTCS_TRACE=1` logs every Windows API call.
+- `LSWTCS_TRACE=1` logs every Windows API call (`LSWTCS_TRACE_FILTER`
+  narrows it).
+- `LSWTCS_FULLSCREEN=window|desktop|exclusive` picks how the game's
+  fullscreen mode is shown.
+- `LSWTCS_FPS_REPORT=<s>` logs the frame rate and the spread of frame
+  intervals every s seconds; `LSWTCS_HITCH=<ms>` logs frames longer
+  than that.
 - `LSWTCS_BACKGROUND=1` keeps the window from taking the keyboard and
-  mouse (this also hides pads).
+  mouse (this also hides pads), for automated runs.
+- `LSWTCS_GAME_DIR` and `LSWTCS_EXE` stand in for `--game-dir` and
+  `--exe`.
 
-## Licence
+## Legal
 
-MIT (see [LICENSE](LICENSE)). LEGO Star Wars: The Complete Saga is ©
-LucasArts/Lucasfilm and TT Games; none of its code or data is part of
-this repository.
+LEGO Star Wars: The Complete Saga is © LucasArts/Lucasfilm and TT
+Games. This project is not affiliated with or endorsed by them, LEGO or
+Valve. It contains no game code, data or assets: the EXE is unpacked
+and lifted locally from your own copy, and neither it nor the lifted
+code is ever committed.
+
+The code here is under the [MIT License](LICENSE). SwARc and its
+dependencies keep their own licences (see SwARc's README): among them
+Berkeley SoftFloat 3e (BSD-3-Clause) and Zydis (MIT), fetched at build
+time, and SDL3 (zlib), ffmpeg (LGPL, linked dynamically) and LLVM's
+demangler (Apache-2.0 with LLVM exception), from your system.
